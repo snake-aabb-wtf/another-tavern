@@ -1,0 +1,7 @@
+# Normalize line endings: repo and working tree stay LF (prettier endOfLine: lf).
+* text=auto eol=lf
+
+# Binary assets (e.g. SillyTavern V2 character card PNGs).
+*.png binary
+*.jpg binary
+*.webp binary

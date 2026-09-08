@@ -1,0 +1,15 @@
+{
+  "name": "@another-tavern/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@another-tavern/engine": "workspace:*",
+    "hono": "^4.13.7"
+  }
+}
