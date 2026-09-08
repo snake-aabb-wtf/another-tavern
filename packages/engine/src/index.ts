@@ -1,10 +1,60 @@
 /**
- * Another Tavern —— 无头引擎（headless engine）。
+ * Another Tavern —— 无头引擎（headless engine）公共 API。
  *
- * 职责：角色卡解析、世界书引擎、Prompt 组装器、tokenizer 接口。
- * 约束：零 UI 依赖、不发网络请求、不碰数据库。
+ * 职责：角色卡解析（V2/V1）、世界书引擎、Prompt 组装器、tokenizer 接口。
+ * 约束：零 UI 依赖、不发网络请求、不碰文件系统与数据库（PNG 解析接受内存字节）。
+ * 规范依据：docs/cards-spec.md、docs/world-info-spec.md、docs/prompt-assembly.md。
  *
- * 当前为 M0 脚手架，仅暴露版本常量，用于验证构建与测试链路。
+ * 本文件是唯一公共出口；内部模块（pick/schema/macros 等）不得外泄。
  */
 
 export const ENGINE_VERSION = "0.1.0";
+
+// —— 角色卡解析（cards-spec）——
+export { parseCharacterCardJson } from "./cards/json.js";
+export { parseCharacterCardPng } from "./cards/png.js";
+export { CardParseError, type CardParseErrorCode } from "./cards/model.js";
+export type { CardWarning, CharacterCard, ParseCardResult } from "./cards/model.js";
+
+// —— 世界书引擎（world-info-spec）——
+export { resolveWorldInfo } from "./worldinfo/resolve.js";
+export type {
+  ResolveWorldInfoBudget,
+  ResolveWorldInfoInput,
+  ResolveWorldInfoResult,
+  ResolveWorldInfoSettings,
+  TokenCounter,
+  WorldInfoInjection,
+  WorldInfoScanMessage,
+} from "./worldinfo/resolve.js";
+export type {
+  InjectionRole,
+  SelectiveLogic,
+  WorldInfoBook,
+  WorldInfoEntry,
+  WorldInfoPosition,
+} from "./worldinfo/model.js";
+
+// —— tokenizer（prompt-assembly §4）——
+export type { Tokenizer } from "./tokenizer/tokenizer.js";
+export { createEstimateTokenizer } from "./tokenizer/estimate.js";
+export {
+  createJsTiktokenTokenizer,
+  tokenizerForModel,
+  type TiktokenEncoding,
+} from "./tokenizer/jst.js";
+
+// —— Prompt 组装器（prompt-assembly）——
+export {
+  assemblePrompt,
+  AssemblyError,
+  DEFAULT_MAIN_PROMPT,
+  type AssemblyErrorCode,
+  type AssemblyInput,
+  type AssemblyMessage,
+  type AssemblyResult,
+  type AssemblyStats,
+  type ChatMessage,
+  type Persona,
+  type SystemSectionId,
+} from "./assembly/assemble.js";

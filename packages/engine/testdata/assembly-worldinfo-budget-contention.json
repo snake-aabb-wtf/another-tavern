@@ -1,0 +1,46 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Write Aria's next reply in a fictional chat between Aria and Kai.\n\nAria 是月光旅店的管理员，说话温柔而简洁。\n\n冷静、体贴，略带神秘感。\n\n深夜，Kai 淋雨走进了月光旅店。\n\nCONST\nKW20\nKW30"
+    },
+    {
+      "role": "assistant",
+      "content": "嗨"
+    },
+    {
+      "role": "user",
+      "content": "alpha beta gamma"
+    }
+  ],
+  "stats": {
+    "tokensTotal": 149,
+    "tokensBySection": {
+      "main": 65,
+      "description": 23,
+      "personality": 12,
+      "scenario": 17,
+      "wiAfter": 15,
+      "chat": 17
+    },
+    "worldInfo": [
+      {
+        "bookId": "lore",
+        "used": 13,
+        "limit": 14,
+        "droppedEntries": [
+          "k10"
+        ]
+      }
+    ],
+    "pruned": {
+      "exampleBlocksDropped": 0,
+      "messagesDropped": []
+    }
+  },
+  "tokenizer": {
+    "id": "test:char-count",
+    "estimated": false
+  },
+  "warnings": []
+}

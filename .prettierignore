@@ -2,3 +2,7 @@ pnpm-lock.yaml
 node_modules/
 dist/
 coverage/
+
+# golden 测试快照：由测试按 JSON.stringify(x, null, 2) 精确比对字节，
+# 不允许 prettier 重新排版
+packages/engine/testdata/

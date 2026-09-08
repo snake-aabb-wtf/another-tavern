@@ -16,5 +16,14 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "js-tiktoken": "^1.0.21",
+    "png-chunk-text": "^1.0.0",
+    "png-chunks-extract": "^1.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "png-chunks-encode": "^1.0.0"
   }
 }

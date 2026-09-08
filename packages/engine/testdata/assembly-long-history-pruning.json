@@ -1,0 +1,56 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Write Aria's next reply in a fictional chat between Aria and Kai.\n\nKai 是一位旅人。\n\nAria 是月光旅店的管理员，说话温柔而简洁。\n\n冷静、体贴，略带神秘感。\n\n深夜，Kai 淋雨走进了月光旅店。"
+    },
+    {
+      "role": "assistant",
+      "content": "欢迎光临。"
+    },
+    {
+      "role": "user",
+      "content": "消息7 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "role": "assistant",
+      "content": "消息8 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "role": "user",
+      "content": "消息9 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "role": "assistant",
+      "content": "消息10 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ],
+  "stats": {
+    "tokensTotal": 389,
+    "tokensBySection": {
+      "main": 65,
+      "persona": 10,
+      "description": 23,
+      "personality": 12,
+      "scenario": 17,
+      "chat": 262
+    },
+    "worldInfo": [],
+    "pruned": {
+      "exampleBlocksDropped": 2,
+      "messagesDropped": [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5",
+        "m6"
+      ]
+    }
+  },
+  "tokenizer": {
+    "id": "test:char-count",
+    "estimated": false
+  },
+  "warnings": []
+}

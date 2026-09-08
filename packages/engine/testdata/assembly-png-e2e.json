@@ -1,0 +1,46 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Write Aria's next reply in a fictional chat between Aria and Kai.\n\n旅店只有烛光照明。\n\n旅人。\n\n月光旅店管理员。\n\n神秘。\n\nKai 推门而入。\n\n<START>\nKai: 好\nAria: 嗯"
+    },
+    {
+      "role": "assistant",
+      "content": "欢迎光临。"
+    },
+    {
+      "role": "user",
+      "content": "这里有什么设施？"
+    }
+  ],
+  "stats": {
+    "tokensTotal": 132,
+    "tokensBySection": {
+      "main": 65,
+      "wiBefore": 9,
+      "persona": 3,
+      "description": 8,
+      "personality": 3,
+      "scenario": 9,
+      "examples": 22,
+      "chat": 13
+    },
+    "worldInfo": [
+      {
+        "bookId": "character_book",
+        "used": 9,
+        "limit": 2048,
+        "droppedEntries": []
+      }
+    ],
+    "pruned": {
+      "exampleBlocksDropped": 0,
+      "messagesDropped": []
+    }
+  },
+  "tokenizer": {
+    "id": "test:char-count",
+    "estimated": false
+  },
+  "warnings": []
+}

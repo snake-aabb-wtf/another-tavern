@@ -1,0 +1,39 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是 Aria，用中文回复。GLOBAL MAIN\n\nAria 是月光旅店的管理员，说话温柔而简洁。\n\n冷静、体贴，略带神秘感。\n\n深夜，Kai 淋雨走进了月光旅店。"
+    },
+    {
+      "role": "user",
+      "content": "你好"
+    },
+    {
+      "role": "system",
+      "content": "只输出一段。"
+    }
+  ],
+  "stats": {
+    "tokensTotal": 85,
+    "tokensBySection": {
+      "main": 25,
+      "description": 23,
+      "personality": 12,
+      "scenario": 17,
+      "chat": 2,
+      "phi": 6
+    },
+    "worldInfo": [],
+    "pruned": {
+      "exampleBlocksDropped": 0,
+      "messagesDropped": []
+    }
+  },
+  "tokenizer": {
+    "id": "test:char-count",
+    "estimated": false
+  },
+  "warnings": [
+    "no_greeting"
+  ]
+}
