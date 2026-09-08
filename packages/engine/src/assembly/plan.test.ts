@@ -189,4 +189,57 @@ describe("normalizePlan：宽容规范化", () => {
 
     expect(plan.unknownFields.sampler).toEqual({ temperature: 0.7 });
   });
+
+  it("M6：槽位 source/content 规范化——缺省补 default，非法 source 回退", () => {
+    const { plan } = normalizePlan({
+      systemSlots: [
+        { id: "main", enabled: true, order: 10, source: "custom", content: "自定义 {{char}}" },
+        { id: "scenario", enabled: true, order: 20, source: "weird", content: "被忽略" },
+      ],
+    });
+
+    const byId = new Map(plan.systemSlots.map((s) => [s.id, s]));
+    expect(byId.get("main")?.source).toBe("custom");
+    expect(byId.get("main")?.content).toBe("自定义 {{char}}");
+    expect(byId.get("scenario")?.source).toBe("default");
+    expect(byId.get("scenario")?.content).toBe("");
+  });
+});
+
+describe("AssemblyPlan：自定义槽位内容来源（M6）", () => {
+  it("source=custom 的槽注入计划文本并做宏替换", () => {
+    const plan = defaultAssemblyPlan();
+    const scenario = plan.systemSlots.find((s) => s.id === "scenario");
+    if (scenario === undefined) {
+      expect.unreachable();
+    }
+    scenario.source = "custom";
+    scenario.content = "场景：{{user}} 到达。";
+
+    const result = assemblePrompt(baseInput({ plan }));
+    const content = result.messages[0]?.content ?? "";
+    expect(content).toContain("场景：Kai 到达。");
+    expect(content).not.toContain("SCEN");
+  });
+
+  it("source=default 的槽保持固定来源（行为不变）", () => {
+    const result = assemblePrompt(baseInput({ plan: defaultAssemblyPlan() }));
+    expect(result.messages[0]?.content).toContain("SCEN");
+  });
+
+  it("custom 空文本 = 段为空（跳过）", () => {
+    const plan = defaultAssemblyPlan();
+    const personality = plan.systemSlots.find((s) => s.id === "personality");
+    if (personality === undefined) {
+      expect.unreachable();
+    }
+    personality.source = "custom";
+    personality.content = "";
+
+    const result = assemblePrompt(baseInput({ plan }));
+    const sections = (result.messages[0]?.content ?? "").split("\n\n");
+    expect(sections).not.toContain("PERS"); // personality 段为空被跳过
+    expect(sections).toContain("PERSONA"); // persona 段不受影响
+    expect(result.stats.tokensBySection.personality).toBeUndefined();
+  });
 });

@@ -36,6 +36,12 @@ export const lorebooks = sqliteTable("lorebooks", {
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   isGlobal: integer("is_global").notNull().default(0),
+  /** M6：书级 token 预算；null = 全局百分比。 */
+  tokenBudget: integer("token_budget"),
+  /** M6：书级扫描深度；null = 全局默认 2。 */
+  scanDepth: integer("scan_depth"),
+  /** M6：书级递归开关；null = 全局默认 false。 */
+  recursiveScanning: integer("recursive_scanning"),
   createdAt: timestamp(),
 });
 
@@ -102,6 +108,10 @@ export const settings = sqliteTable("settings", {
   model: text("model").notNull().default(""),
   /** M4：采样参数 JSON（temperature 等），白名单透传上游。 */
   sampling: text("sampling").notNull().default("{}"),
+  /** M6：全局默认组装计划；null = 引擎内置默认。会话 plan_id 为空时使用。 */
+  defaultPlanId: text("default_plan_id").references(() => assemblyPlans.id, {
+    onDelete: "set null",
+  }),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

@@ -46,6 +46,8 @@ export interface SettingsRow {
   model: string;
   /** M4：采样参数（temperature 等），白名单透传上游。 */
   sampling: Record<string, unknown>;
+  /** M6：全局默认组装计划 id；null = 引擎内置默认。 */
+  defaultPlanId: string | null;
 }
 
 export interface PlanRow {
@@ -62,6 +64,12 @@ export interface LorebookRow {
   name: string;
   description: string;
   isGlobal: boolean;
+  /** M6：书级 token 预算；null = 全局百分比。 */
+  tokenBudget: number | null;
+  /** M6：书级扫描深度；null = 全局默认。 */
+  scanDepth: number | null;
+  /** M6：书级递归开关；null = 全局默认。 */
+  recursiveScanning: boolean | null;
   createdAt: string;
 }
 
@@ -279,10 +287,12 @@ export class Repo {
 
   getSettings(): SettingsRow {
     const row = this.sqlite
-      .prepare("SELECT base_url, api_key, model, sampling FROM settings WHERE id = 1")
+      .prepare(
+        "SELECT base_url, api_key, model, sampling, default_plan_id FROM settings WHERE id = 1",
+      )
       .get() as Record<string, unknown> | undefined;
     if (row === undefined) {
-      return { baseUrl: "", apiKey: "", model: "", sampling: {} };
+      return { baseUrl: "", apiKey: "", model: "", sampling: {}, defaultPlanId: null };
     }
     let sampling: Record<string, unknown> = {};
     try {
@@ -298,20 +308,25 @@ export class Repo {
       apiKey: String(row.api_key ?? ""),
       model: String(row.model ?? ""),
       sampling,
+      defaultPlanId:
+        row.default_plan_id === undefined || row.default_plan_id === null
+          ? null
+          : String(row.default_plan_id),
     };
   }
 
   putSettings(input: SettingsRow): SettingsRow {
     this.sqlite
       .prepare(
-        `INSERT INTO settings (id, base_url, api_key, model, sampling, updated_at) VALUES (1, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, api_key = excluded.api_key, model = excluded.model, sampling = excluded.sampling, updated_at = excluded.updated_at`,
+        `INSERT INTO settings (id, base_url, api_key, model, sampling, default_plan_id, updated_at) VALUES (1, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, api_key = excluded.api_key, model = excluded.model, sampling = excluded.sampling, default_plan_id = excluded.default_plan_id, updated_at = excluded.updated_at`,
       )
       .run(
         input.baseUrl,
         input.apiKey,
         input.model,
         JSON.stringify(input.sampling ?? {}),
+        input.defaultPlanId,
         new Date().toISOString(),
       );
     return this.getSettings();
@@ -366,7 +381,7 @@ export class Repo {
   listLorebooks(): LorebookRow[] {
     return this.sqlite
       .prepare(
-        "SELECT id, name, description, is_global, created_at FROM lorebooks ORDER BY created_at",
+        "SELECT id, name, description, is_global, token_budget, scan_depth, recursive_scanning, created_at FROM lorebooks ORDER BY created_at",
       )
       .all()
       .map((row) => mapLorebook(row as Record<string, unknown>));
@@ -374,7 +389,9 @@ export class Repo {
 
   getLorebook(id: string): LorebookRow | undefined {
     const row = this.sqlite
-      .prepare("SELECT id, name, description, is_global, created_at FROM lorebooks WHERE id = ?")
+      .prepare(
+        "SELECT id, name, description, is_global, token_budget, scan_depth, recursive_scanning, created_at FROM lorebooks WHERE id = ?",
+      )
       .get(id);
     return row === undefined ? undefined : mapLorebook(row as Record<string, unknown>);
   }
@@ -382,17 +399,49 @@ export class Repo {
   listGlobalLorebooks(): LorebookRow[] {
     return this.sqlite
       .prepare(
-        "SELECT id, name, description, is_global, created_at FROM lorebooks WHERE is_global = 1 ORDER BY created_at",
+        "SELECT id, name, description, is_global, token_budget, scan_depth, recursive_scanning, created_at FROM lorebooks WHERE is_global = 1 ORDER BY created_at",
       )
       .all()
       .map((row) => mapLorebook(row as Record<string, unknown>));
   }
 
-  updateLorebook(id: string, name: string, description: string, isGlobal: boolean): boolean {
+  /** M6：更新书（支持书级 token 预算 / 扫描深度 / 递归开关）。 */
+  updateLorebook(
+    id: string,
+    patch: {
+      name?: string;
+      description?: string;
+      isGlobal?: boolean;
+      tokenBudget?: number | null;
+      scanDepth?: number | null;
+      recursiveScanning?: boolean | null;
+    },
+  ): boolean {
+    const existing = this.getLorebook(id);
+    if (existing === undefined) {
+      return false;
+    }
+    const name = patch.name ?? existing.name;
+    const description = patch.description ?? existing.description;
+    const isGlobal = patch.isGlobal ?? existing.isGlobal;
+    const tokenBudget = patch.tokenBudget !== undefined ? patch.tokenBudget : existing.tokenBudget;
+    const scanDepth = patch.scanDepth !== undefined ? patch.scanDepth : existing.scanDepth;
+    const recursiveScanning =
+      patch.recursiveScanning !== undefined ? patch.recursiveScanning : existing.recursiveScanning;
     return (
       this.sqlite
-        .prepare("UPDATE lorebooks SET name = ?, description = ?, is_global = ? WHERE id = ?")
-        .run(name, description, isGlobal ? 1 : 0, id).changes > 0
+        .prepare(
+          "UPDATE lorebooks SET name = ?, description = ?, is_global = ?, token_budget = ?, scan_depth = ?, recursive_scanning = ? WHERE id = ?",
+        )
+        .run(
+          name,
+          description,
+          isGlobal ? 1 : 0,
+          tokenBudget,
+          scanDepth,
+          recursiveScanning === null ? null : recursiveScanning ? 1 : 0,
+          id,
+        ).changes > 0
     );
   }
 
@@ -530,6 +579,14 @@ function mapLorebook(row: Record<string, unknown>): LorebookRow {
     name: String(row.name),
     description: String(row.description ?? ""),
     isGlobal: Number(row.is_global ?? 0) === 1,
+    tokenBudget:
+      row.token_budget === undefined || row.token_budget === null ? null : Number(row.token_budget),
+    scanDepth:
+      row.scan_depth === undefined || row.scan_depth === null ? null : Number(row.scan_depth),
+    recursiveScanning:
+      row.recursive_scanning === undefined || row.recursive_scanning === null
+        ? null
+        : Number(row.recursive_scanning) === 1,
     createdAt: String(row.created_at),
   };
 }

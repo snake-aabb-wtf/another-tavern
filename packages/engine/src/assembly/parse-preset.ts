@@ -81,7 +81,7 @@ export function parseOpenAiPreset(source: string | unknown, planId = "imported")
   for (const [identifier, slotId] of Object.entries(SLOT_BY_IDENTIFIER)) {
     const enabled = enabledById.get(identifier) ?? false;
     const order = orderById.get(identifier) ?? (Object.keys(SLOT_BY_IDENTIFIER).length + 1) * 10;
-    slots.push({ id: slotId, enabled, order });
+    slots.push({ id: slotId, enabled, order, source: "default", content: "" });
   }
 
   // —— PHI（jailbreak）——

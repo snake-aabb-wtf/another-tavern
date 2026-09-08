@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `default_plan_id` text REFERENCES assembly_plans(id);

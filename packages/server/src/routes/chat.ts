@@ -53,9 +53,9 @@ function loadBookWithEntries(deps: AppDeps, row: LorebookRow): WorldInfoBook {
     id: row.id,
     name: row.name,
     description: row.description === "" ? null : row.description,
-    scanDepth: null,
-    tokenBudget: null,
-    recursiveScanning: null,
+    scanDepth: row.scanDepth,
+    tokenBudget: row.tokenBudget,
+    recursiveScanning: row.recursiveScanning,
     entries: deps.db.repo
       .listEntries(row.id)
       .map((entry) => JSON.parse(entry.data) as WorldInfoEntry),
@@ -130,22 +130,27 @@ export function chatRoutes(deps: AppDeps): Hono {
         });
     const card = JSON.parse(character.data) as CharacterCard;
 
-    // M4：会话组装计划（null = 引擎默认计划）
+    // M4/M6：会话组装计划 → 全局默认计划 → 引擎内置默认（三级 fallback）
     let plan;
-    if (session.planId !== null) {
-      const planRow = deps.db.repo.getPlan(session.planId);
+    const planSourceId = session.planId ?? settings.defaultPlanId;
+    if (planSourceId !== null) {
+      const planRow = deps.db.repo.getPlan(planSourceId);
       if (planRow === undefined) {
-        return c.json(
-          {
-            error: {
-              code: "not_found",
-              message: "会话绑定的组装计划不存在（已回落默认计划可重置）。",
+        if (session.planId !== null) {
+          // 会话显式绑定的计划被删 → 显式 404（全局默认被删则静默回落内置默认）
+          return c.json(
+            {
+              error: {
+                code: "not_found",
+                message: "会话绑定的组装计划不存在（已回落默认计划可重置）。",
+              },
             },
-          },
-          404,
-        );
+            404,
+          );
+        }
+      } else {
+        plan = normalizePlan(JSON.parse(planRow.data)).plan;
       }
-      plan = normalizePlan(JSON.parse(planRow.data)).plan;
     }
 
     // M4：三源世界书——卡内书 + 角色挂载书 + 全局书（按 id 去重，先到先得）

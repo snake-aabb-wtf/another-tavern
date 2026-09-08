@@ -8,12 +8,16 @@ import { streamChat } from "../api/chat.js";
 import {
   createSession,
   deleteSession,
+  getLastPrompt,
   getSessionDetail,
   listSessions,
+  setSessionPlan,
   updateMessage,
   type ChatMessageRow,
+  type PromptMessages,
   type SessionSummary,
 } from "../api/sessions.js";
+import { getCharacterLorebookLinks } from "../api/lorebooks.js";
 
 const CURRENT_SESSION_KEY = "at.currentSession";
 
@@ -24,7 +28,12 @@ interface StreamingState {
 interface SessionsState {
   sessions: SessionSummary[];
   currentId: string | null;
+  currentCharacterId: string | null;
   messages: ChatMessageRow[];
+  /** M6：当前角色挂载的世界书 id。 */
+  linkedBookIds: string[];
+  /** M6：最近一次组装的最终 prompt（null = 未拉取）。 */
+  lastPrompt: PromptMessages | null;
   streaming: StreamingState | null;
   loading: boolean;
   error: string | null;
@@ -37,6 +46,10 @@ interface SessionsState {
   regenerate: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   swipeTo: (messageId: string, index: number) => Promise<void>;
+  /** M6：切换会话组装计划（null = 回落全局默认）。 */
+  setPlan: (planId: string | null) => Promise<void>;
+  /** M6：拉取最近一次组装的最终 prompt。 */
+  fetchLastPrompt: () => Promise<void>;
 }
 
 function storedSessionId(): string | null {
@@ -50,7 +63,10 @@ function storedSessionId(): string | null {
 export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessions: [],
   currentId: null,
+  currentCharacterId: null,
+  linkedBookIds: [],
   messages: [],
+  lastPrompt: null,
   streaming: null,
   loading: false,
   error: null,
@@ -85,9 +101,48 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       } catch {
         // localStorage 不可用（隐私模式）：仅内存保持
       }
-      set({ currentId: id, messages: detail.messages, streaming: null, loading: false });
+      set({
+        currentId: id,
+        currentCharacterId: detail.session.characterId,
+        messages: detail.messages,
+        streaming: null,
+        loading: false,
+      });
+      // M6：拉取当前角色的世界书挂载（用于聊天页来源展示）
+      try {
+        const { bookIds } = await getCharacterLorebookLinks(detail.session.characterId);
+        set({ linkedBookIds: bookIds });
+      } catch {
+        set({ linkedBookIds: [] });
+      }
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+
+  /** M6：切换当前会话的组装计划（null = 回落全局默认）。 */
+  setPlan: async (planId: string | null) => {
+    const currentId = get().currentId;
+    if (currentId === null) {
+      return;
+    }
+    await setSessionPlan(currentId, planId);
+    set({
+      sessions: get().sessions.map((s) => (s.id === currentId ? { ...s, planId } : s)),
+    });
+  },
+
+  /** M6：拉取最近一次组装的最终 prompt。 */
+  fetchLastPrompt: async () => {
+    const currentId = get().currentId;
+    if (currentId === null) {
+      return;
+    }
+    try {
+      const last = await getLastPrompt(currentId);
+      set({ lastPrompt: last });
+    } catch {
+      set({ lastPrompt: null });
     }
   },
 

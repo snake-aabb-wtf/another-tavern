@@ -63,3 +63,25 @@ export function updateMessage(
     patch,
   ) as Promise<ChatMessageRow>;
 }
+
+/** M6：切换会话组装计划（null = 回落全局默认）。 */
+export function setSessionPlan(
+  sessionId: string,
+  planId: string | null,
+): Promise<{ sessionId: string; planId: string | null }> {
+  return api.put(`/api/sessions/${sessionId}/plan`, { planId }) as Promise<{
+    sessionId: string;
+    planId: string | null;
+  }>;
+}
+
+export interface PromptMessages {
+  sessionId: string;
+  /** 最终 messages（role + content）。 */
+  messages: Array<{ role: string; content: string }>;
+}
+
+/** M6：读取最近一次组装的最终 prompt。 */
+export function getLastPrompt(sessionId: string): Promise<PromptMessages> {
+  return api.get(`/api/sessions/${sessionId}/last-prompt`) as Promise<PromptMessages>;
+}

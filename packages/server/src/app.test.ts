@@ -160,6 +160,7 @@ describe("server API（内存 SQLite + fake 上游）", () => {
         apiKey: "",
         hasApiKey: false,
         sampling: {},
+        defaultPlanId: null,
       });
     });
   });

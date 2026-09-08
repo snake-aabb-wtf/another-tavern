@@ -29,6 +29,9 @@ export const SYSTEM_SLOT_IDS: readonly SystemSlotId[] = [
   "examples",
 ];
 
+/** 槽位内容来源：default = docs §3 固定来源；custom = 计划自带文本。 */
+export type SlotContentSource = "default" | "custom";
+
 /** 单个 system 槽位的编排。 */
 export interface SystemPlanSlot {
   id: SystemSlotId;
@@ -36,6 +39,10 @@ export interface SystemPlanSlot {
   enabled: boolean;
   /** 相对顺序，升序 = 靠 prompt 上方；同值按槽位数组序稳定排序。 */
   order: number;
+  /** 内容来源；缺省 default（M6 扩展，经人类批准）。 */
+  source: SlotContentSource;
+  /** source="custom" 时注入的文本（支持 {{char}}/{{user}} 宏）；default 时为空串。 */
+  content: string;
 }
 
 /** PHI（post_history_instructions）编排除编号。 */
@@ -60,14 +67,14 @@ export interface AssemblyPlan {
 
 /** 缺省槽位编排：与 docs/prompt-assembly.md §2.1 固定段序逐位等价。 */
 export const DEFAULT_SYSTEM_SLOTS: readonly SystemPlanSlot[] = [
-  { id: "main", enabled: true, order: 10 },
-  { id: "wiBefore", enabled: true, order: 20 },
-  { id: "persona", enabled: true, order: 30 },
-  { id: "description", enabled: true, order: 40 },
-  { id: "personality", enabled: true, order: 50 },
-  { id: "scenario", enabled: true, order: 60 },
-  { id: "wiAfter", enabled: true, order: 70 },
-  { id: "examples", enabled: true, order: 80 },
+  { id: "main", enabled: true, order: 10, source: "default", content: "" },
+  { id: "wiBefore", enabled: true, order: 20, source: "default", content: "" },
+  { id: "persona", enabled: true, order: 30, source: "default", content: "" },
+  { id: "description", enabled: true, order: 40, source: "default", content: "" },
+  { id: "personality", enabled: true, order: 50, source: "default", content: "" },
+  { id: "scenario", enabled: true, order: 60, source: "default", content: "" },
+  { id: "wiAfter", enabled: true, order: 70, source: "default", content: "" },
+  { id: "examples", enabled: true, order: 80, source: "default", content: "" },
 ];
 
 export const DEFAULT_PLAN_ID = "default";
@@ -152,10 +159,15 @@ function normalizeSlots(value: unknown): { slots: SystemPlanSlot[]; warnings: st
     seen.add(id as SystemSlotId);
     const order =
       typeof slot.order === "number" && Number.isFinite(slot.order) ? slot.order : fallbackOrder;
+    // M6：内容来源（default | custom）；custom 文本仅接受字符串
+    const source: SlotContentSource = slot.source === "custom" ? "custom" : "default";
+    const content = typeof slot.content === "string" ? slot.content : "";
     slots.push({
       id: id as SystemSlotId,
       enabled: typeof slot.enabled === "boolean" ? slot.enabled : true,
       order,
+      source,
+      content: source === "custom" ? content : "",
     });
     fallbackOrder += 10;
   }

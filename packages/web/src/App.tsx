@@ -6,17 +6,23 @@ import { useEffect, useState } from "react";
 
 import CharactersPage from "./components/CharactersPage.js";
 import ChatView from "./components/ChatView.js";
+import LorebooksPage from "./components/LorebooksPage.js";
+import PlansPage from "./components/PlansPage.js";
 import SettingsPage from "./components/SettingsPage.js";
 import Sidebar from "./components/Sidebar.js";
 import { useCharactersStore } from "./stores/characters.js";
+import { useLorebooksStore } from "./stores/lorebooks.js";
+import { usePlansStore } from "./stores/plans.js";
 import { useSettingsStore } from "./stores/settings.js";
 import { useSessionsStore } from "./stores/sessions.js";
 
-type Page = "chat" | "characters" | "settings";
+type Page = "chat" | "characters" | "lorebooks" | "plans" | "settings";
 
 const PAGE_LABELS: ReadonlyArray<readonly [Page, string]> = [
   ["chat", "聊天"],
   ["characters", "角色卡"],
+  ["lorebooks", "世界书"],
+  ["plans", "计划"],
   ["settings", "设置"],
 ];
 
@@ -26,12 +32,16 @@ export default function App() {
   const loadSessions = useSessionsStore((s) => s.loadSessions);
   const loadCharacters = useCharactersStore((s) => s.load);
   const loadSettings = useSettingsStore((s) => s.load);
+  const loadPlans = usePlansStore((s) => s.load);
+  const loadLorebooks = useLorebooksStore((s) => s.load);
 
   useEffect(() => {
     void loadSessions();
     void loadCharacters();
     void loadSettings();
-  }, [loadSessions, loadCharacters, loadSettings]);
+    void loadPlans();
+    void loadLorebooks();
+  }, [loadSessions, loadCharacters, loadSettings, loadPlans, loadLorebooks]);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
@@ -88,6 +98,8 @@ export default function App() {
         <main className="min-w-0 flex-1 overflow-hidden">
           {page === "chat" && <ChatView />}
           {page === "characters" && <CharactersPage onGoChat={() => setPage("chat")} />}
+          {page === "lorebooks" && <LorebooksPage />}
+          {page === "plans" && <PlansPage />}
           {page === "settings" && <SettingsPage />}
         </main>
       </div>

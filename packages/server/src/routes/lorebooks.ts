@@ -94,14 +94,29 @@ export function lorebooksRoutes(deps: AppDeps): Hono {
       return c.json({ error: { code: "not_found", message: "世界书不存在。" } }, 404);
     }
     const body = await c.req
-      .json<{ name?: unknown; description?: unknown; isGlobal?: unknown }>()
+      .json<{
+        name?: unknown;
+        description?: unknown;
+        isGlobal?: unknown;
+        tokenBudget?: unknown;
+        scanDepth?: unknown;
+        recursiveScanning?: unknown;
+      }>()
       .catch(() => ({}) as Record<string, never>);
-    const book = deps.db.repo.updateLorebook(
-      id,
-      typeof body.name === "string" && body.name !== "" ? body.name : existing.name,
-      typeof body.description === "string" ? body.description : existing.description,
-      typeof body.isGlobal === "boolean" ? body.isGlobal : existing.isGlobal,
-    );
+    const book = deps.db.repo.updateLorebook(id, {
+      name: typeof body.name === "string" && body.name !== "" ? body.name : existing.name,
+      description: typeof body.description === "string" ? body.description : existing.description,
+      isGlobal: typeof body.isGlobal === "boolean" ? body.isGlobal : existing.isGlobal,
+      ...(typeof body.tokenBudget === "number" && Number.isFinite(body.tokenBudget)
+        ? { tokenBudget: Math.trunc(body.tokenBudget) }
+        : {}),
+      ...(typeof body.scanDepth === "number" && Number.isFinite(body.scanDepth)
+        ? { scanDepth: Math.trunc(body.scanDepth) }
+        : {}),
+      ...(typeof body.recursiveScanning === "boolean"
+        ? { recursiveScanning: body.recursiveScanning }
+        : {}),
+    });
     return c.json(book);
   });
 

@@ -1,5 +1,6 @@
 /**
- * 连接设置（M3 任务 §2）：GET 返回打码后的 apiKey，PUT 落库全文。
+ * 连接设置（M3 任务 §2 + M6 全局默认计划）：
+ * GET 返回打码后的 apiKey；apiKey/defaultPlanId 缺省提交 = 保留原值。
  */
 
 import { Hono } from "hono";
@@ -17,25 +18,48 @@ export function settingsRoutes(deps: AppDeps): Hono {
       apiKey: maskApiKey(value.apiKey),
       hasApiKey: value.apiKey !== "",
       sampling: value.sampling,
+      defaultPlanId: value.defaultPlanId,
     });
   });
 
   app.put("/api/settings", async (c) => {
     const body = await c.req
-      .json<{ baseUrl?: unknown; apiKey?: unknown; model?: unknown; sampling?: unknown }>()
+      .json<{
+        baseUrl?: unknown;
+        apiKey?: unknown;
+        model?: unknown;
+        sampling?: unknown;
+        defaultPlanId?: unknown;
+      }>()
       .catch(() => ({}) as Record<string, never>);
     const sampling =
       typeof body.sampling === "object" && body.sampling !== null && !Array.isArray(body.sampling)
         ? (body.sampling as Record<string, unknown>)
         : {};
-    // M5：apiKey 为空/缺省 = 保留原值（前端不回显明文，只有用户输入新 key 才更新）
     const existing = deps.db.repo.getSettings();
+
+    // M5：apiKey 为空/缺省 = 保留原值（前端不回显明文，只有用户输入新 key 才更新）
     const newApiKey = readString(body.apiKey);
+
+    // M6：defaultPlanId 缺省 = 保留；null = 清除（回落引擎内置默认）；字符串须存在
+    let defaultPlanId: string | null = existing.defaultPlanId;
+    if ("defaultPlanId" in body) {
+      if (body.defaultPlanId === null) {
+        defaultPlanId = null;
+      } else if (typeof body.defaultPlanId === "string" && body.defaultPlanId !== "") {
+        if (deps.db.repo.getPlan(body.defaultPlanId) === undefined) {
+          return c.json({ error: { code: "not_found", message: "组装计划不存在。" } }, 404);
+        }
+        defaultPlanId = body.defaultPlanId;
+      }
+    }
+
     const saved = deps.db.repo.putSettings({
       baseUrl: readString(body.baseUrl),
       apiKey: newApiKey !== "" ? newApiKey : existing.apiKey,
       model: readString(body.model),
       sampling,
+      defaultPlanId,
     });
     return c.json({
       baseUrl: saved.baseUrl,
@@ -43,6 +67,7 @@ export function settingsRoutes(deps: AppDeps): Hono {
       apiKey: maskApiKey(saved.apiKey),
       hasApiKey: saved.apiKey !== "",
       sampling: saved.sampling,
+      defaultPlanId: saved.defaultPlanId,
     });
   });
 

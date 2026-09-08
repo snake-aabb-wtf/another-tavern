@@ -10,7 +10,8 @@
 - **M2** 引擎：角色卡解析、世界书引擎、tokenizer、Prompt 组装器（`packages/engine`）✅
 - **M3** 后端与端到端链路：SQLite(Drizzle 迁移) + REST API + SSE 流式对话 ✅
 - **M4** 数据地基：组装计划、世界书管理表与导入、生态解析器、计划感知组装 ✅
-- **M5** 正式前端核心：会话/聊天/角色卡/设置四页 + zustand 状态 + API client ✅（世界书 UI、预设 UI 属 M6）
+- **M5** 正式前端核心：会话/聊天/角色卡/设置四页 + zustand 状态 + API client ✅
+- **M6** 世界书与预设 UI：世界书管理/条目编辑/挂载、组装计划编辑器、ST 导入、prompt 可观测 ✅
 
 ## 规格文档（docs/）
 

@@ -7,6 +7,8 @@ export interface SettingsData {
   apiKey: string;
   hasApiKey: boolean;
   sampling: Record<string, unknown>;
+  /** M6：全局默认组装计划 id；null = 引擎内置默认。 */
+  defaultPlanId: string | null;
 }
 
 export function getSettings(): Promise<SettingsData> {
@@ -19,6 +21,8 @@ export interface SettingsPatch {
   /** 空串/缺省 = 保留已存的 key（后端语义）。 */
   apiKey?: string;
   sampling?: Record<string, unknown>;
+  /** M6：缺省 = 保留；null = 清除（回落引擎内置默认）。 */
+  defaultPlanId?: string | null;
 }
 
 export function updateSettings(patch: SettingsPatch): Promise<SettingsData> {

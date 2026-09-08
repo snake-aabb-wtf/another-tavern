@@ -10,7 +10,12 @@ import type { WorldInfoBook } from "../worldinfo/model.js";
 import { resolveWorldInfo, type ResolveWorldInfoSettings } from "../worldinfo/resolve.js";
 import type { Tokenizer } from "../tokenizer/tokenizer.js";
 import { substituteMacros, substituteOriginal } from "./macros.js";
-import { defaultAssemblyPlan, type AssemblyPlan, type SystemSlotId } from "./plan.js";
+import {
+  defaultAssemblyPlan,
+  type AssemblyPlan,
+  type SystemPlanSlot,
+  type SystemSlotId,
+} from "./plan.js";
 
 /** 内置默认 main prompt（对齐 ST 源码 default_main_prompt 原文）。 */
 export const DEFAULT_MAIN_PROMPT =
@@ -118,11 +123,14 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const warnings: string[] = [];
   const count = (text: string): number => tokenizer.count(text);
 
-  // —— 组装计划（M4）：缺省 = docs §2.1 固定段序；槽位只编排顺序与启停 ——
+  // —— 组装计划（M4/M6）：缺省 = docs §2.1 固定段序；槽位编排顺序、启停与内容来源 ——
   const plan: AssemblyPlan = input.plan ?? defaultAssemblyPlan();
   const orderedSlots = [...plan.systemSlots].sort((a, b) => a.order - b.order);
   const slotEnabled = new Map<SystemSlotId, boolean>(
     plan.systemSlots.map((slot) => [slot.id, slot.enabled]),
+  );
+  const slotById = new Map<SystemSlotId, SystemPlanSlot>(
+    plan.systemSlots.map((slot) => [slot.id, slot]),
   );
 
   // —— 步骤 0：宏替换（§7，单次、不递归求值）——
@@ -238,6 +246,11 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
 
   // —— 步骤 4：裁剪循环（§6.3：examples 块 → 最旧历史 → 硬错误）——
   function sectionText(id: SystemSlotId, from: number): string {
+    // M6：计划自定义内容来源（source=custom）优先；custom 文本做宏替换
+    const slot = slotById.get(id);
+    if (slot?.source === "custom") {
+      return M(slot.content);
+    }
     if (id === "examples") {
       return examplesTextAt(from);
     }
