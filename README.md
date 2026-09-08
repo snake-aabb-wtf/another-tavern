@@ -6,7 +6,16 @@
 ## 当前状态
 
 M0 脚手架已完成：pnpm workspace + 三个包骨架 + 工具链（TypeScript strict / vitest / eslint / prettier）。
+M1 规格文档已完成，`docs/` 下三份规范是后续实现的**唯一依据**（详见下表）。
 **业务逻辑尚未开始**，当前唯一实现的 API 端点是 `GET /api/health`。
+
+## 规格文档（docs/）
+
+| 文档                                                 | 内容                                                                | 状态   |
+| ---------------------------------------------------- | ------------------------------------------------------------------- | ------ |
+| [docs/cards-spec.md](./docs/cards-spec.md)           | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略       | 评审中 |
+| [docs/prompt-assembly.md](./docs/prompt-assembly.md) | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例 | 评审中 |
+| [docs/world-info-spec.md](./docs/world-info-spec.md) | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口         | 评审中 |
 
 ## 架构分层
 
