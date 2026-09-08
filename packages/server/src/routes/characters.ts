@@ -67,6 +67,33 @@ export function charactersRoutes(deps: AppDeps): Hono {
     });
   });
 
+  // M5：编辑卡基本信息（引擎卡模型 camelCase 字段；未知字段保留）
+  app.put("/api/characters/:id", async (c) => {
+    const row = deps.db.repo.getCharacter(c.req.param("id"));
+    if (row === undefined) {
+      return c.json({ error: { code: "not_found", message: "角色卡不存在。" } }, 404);
+    }
+    const body = await c.req
+      .json<{
+        name?: unknown;
+        description?: unknown;
+        personality?: unknown;
+        scenario?: unknown;
+        firstMes?: unknown;
+      }>()
+      .catch(() => ({}) as Record<string, never>);
+    const card = JSON.parse(row.data) as Record<string, unknown>;
+    for (const key of ["name", "description", "personality", "scenario", "firstMes"] as const) {
+      const value = body[key];
+      if (typeof value === "string") {
+        card[key] = value;
+      }
+    }
+    const newName = typeof card.name === "string" ? card.name : row.name;
+    deps.db.repo.updateCharacter(row.id, newName, JSON.stringify(card));
+    return c.json({ id: row.id, name: newName, card });
+  });
+
   // M4：世界书挂载（全量设置挂载集合）
   app.get("/api/characters/:id/lorebooks", (c) => {
     if (deps.db.repo.getCharacter(c.req.param("id")) === undefined) {

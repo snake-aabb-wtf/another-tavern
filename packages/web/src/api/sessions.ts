@@ -1,0 +1,65 @@
+/** 会话与消息 API。 */
+import { api } from "./client.js";
+
+export interface SessionSummary {
+  id: string;
+  characterId: string;
+  title: string;
+  planId: string | null;
+  createdAt: string;
+}
+
+export interface ChatMessageRow {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  swipeCandidates: string[];
+  swipeIndex: number;
+  seq: number;
+  createdAt: string;
+}
+
+export interface SessionDetail {
+  session: SessionSummary;
+  messages: ChatMessageRow[];
+}
+
+export function listSessions(): Promise<SessionSummary[]> {
+  return api.get("/api/sessions") as Promise<SessionSummary[]>;
+}
+
+export function getSessionDetail(id: string): Promise<SessionDetail> {
+  return api.get(`/api/sessions/${id}`) as Promise<SessionDetail>;
+}
+
+export function createSession(characterId: string, title?: string): Promise<SessionSummary> {
+  return api.post("/api/sessions", { characterId, title }) as Promise<SessionSummary>;
+}
+
+export function deleteSession(id: string): Promise<null> {
+  return api.del(`/api/sessions/${id}`) as Promise<null>;
+}
+
+export function postMessage(sessionId: string, content: string): Promise<ChatMessageRow> {
+  return api.post(`/api/sessions/${sessionId}/messages`, {
+    role: "user",
+    content,
+  }) as Promise<ChatMessageRow>;
+}
+
+export interface MessagePatch {
+  content?: string;
+  swipeIndex?: number;
+}
+
+export function updateMessage(
+  sessionId: string,
+  messageId: string,
+  patch: MessagePatch,
+): Promise<ChatMessageRow> {
+  return api.put(
+    `/api/sessions/${sessionId}/messages/${messageId}`,
+    patch,
+  ) as Promise<ChatMessageRow>;
+}

@@ -7,9 +7,10 @@
 
 - **M0** 脚手架：pnpm workspace + 三包骨架 + 工具链（TypeScript strict / vitest / eslint / prettier）✅
 - **M1** 规格文档：`docs/` 三份规范，是实现的**唯一依据**（见下表）✅
-- **M2** 引擎：角色卡解析、世界书引擎、tokenizer、Prompt 组装器（`packages/engine`，104 tests）✅
-- **M3** 后端与端到端链路：SQLite(Drizzle 迁移) + REST API + SSE 流式对话 + 探针页 ✅
-- **M4** 正式前端：未开始
+- **M2** 引擎：角色卡解析、世界书引擎、tokenizer、Prompt 组装器（`packages/engine`）✅
+- **M3** 后端与端到端链路：SQLite(Drizzle 迁移) + REST API + SSE 流式对话 ✅
+- **M4** 数据地基：组装计划、世界书管理表与导入、生态解析器、计划感知组装 ✅
+- **M5** 正式前端核心：会话/聊天/角色卡/设置四页 + zustand 状态 + API client ✅（世界书 UI、预设 UI 属 M6）
 
 ## 规格文档（docs/）
 
@@ -76,16 +77,18 @@
 构建产物位于各包 `dist/`（web 为 `packages/web/dist/`，可直接静态部署）。
 server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖），迁移文件在 `packages/server/drizzle/`。
 
-## 手动冒烟测试（M3 全链路）
+## 手动冒烟测试（M5 全链路）
 
 前置：Node ≥ 22.5；一个 OpenAI 兼容上游（如任何暴露 `/chat/completions` 的服务）与它的 API key。
 
 1. **启动**：仓库根执行 `pnpm dev`——server 跑在 `http://localhost:3001`，web 跑在 `http://localhost:5173`（`/api` 自动代理到 3001）。
-2. **导入一张测试卡**：打开 `http://localhost:5173`，在"链路探针"页选择一张 V2 PNG/JSON 角色卡 → 点"导入卡"，状态行显示"已导入：<卡名>"。没有现成卡时，可把 `packages/server/src/app.test.ts` 里的 `SAMPLE_CARD` JSON 存成 `.json` 文件使用。
-3. **点"建会话"**：状态行显示"会话就绪"（卡片的 `first_mes` 会作为第一条 assistant 消息自动入库）。
-4. **填上游配置**：任选一种方式向 `PUT /api/settings` 提交 `{ "baseUrl": "https://<上游>/v1", "apiKey": "<key>", "model": "<模型名>" }`（例如 `curl -X PUT http://localhost:3001/api/settings -H "content-type: application/json" -d '{"baseUrl":"...","apiKey":"...","model":"..."}'`）。
-5. **发起对话**：在输入框输入消息 → 点"发送（SSE）"→ 黑色输出区**流式出字**（每个 delta 实时追加），结束时状态行显示"完成 ✓"。
-6. **验证持久化**：`Ctrl+C` 停掉 `pnpm dev` → 再次 `pnpm dev` → 刷新页面重新"建会话"前，先 `curl http://localhost:3001/api/sessions/<id>`（id 见第 3 步响应或 `GET /api/sessions`）确认历史消息（含上一轮的 user 与 assistant 消息）**仍在**。
+2. **导入角色卡**：打开 `http://localhost:5173` → 顶部「角色卡」页 → 把 V2 PNG/JSON 卡**拖入虚线区**（或点"或选择文件导入"）→ 状态行显示"已导入：<卡名>"。没有现成卡时，可把 `packages/server/src/app.test.ts` 里的 `SAMPLE_CARD` JSON 存成 `.json` 文件使用。
+3. **新建会话**：在卡列表点「开始聊天」→ 自动跳到聊天页，卡片的 `first_mes` 已作为开场消息显示；左侧栏出现该会话。
+4. **配置上游**：「设置」页填 baseUrl / API key / 模型名 → 保存（key 不回显明文；留空即保留）。同页可设 temperature / top_p / max_tokens。
+5. **流式对话**：聊天页输入消息 → Enter 发送 → 助手气泡**逐 token 出字**。
+6. **编辑 / swipe / 重新生成**：点消息下「编辑」改内容并保存；assistant 气泡下 `← 1/2 →` 切换候选（点「→ 重新生成」生成新候选）；「重新生成」按钮可重生成最后一条回复。
+7. **刷新保持**：刷新页面 → 会话列表仍在、上次打开的会话自动恢复、历史消息完整。
+8. **采样生效**：设置页改 `temperature`（如 0.1）→ 保存 → 继续对话，观察回复变化；或用 `curl` 对比上游收到的请求体。
 
 ## 面向 Agent 的开发规则
 

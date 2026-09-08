@@ -119,6 +119,36 @@ export function sessionsRoutes(deps: AppDeps): Hono {
     return c.json(message, 201);
   });
 
+  // M5：编辑消息内容 / 切换 swipe 候选
+  app.put("/api/sessions/:id/messages/:messageId", async (c) => {
+    const sessionId = c.req.param("id");
+    const messageId = c.req.param("messageId");
+    const body = await c.req
+      .json<{ content?: unknown; swipeIndex?: unknown }>()
+      .catch(() => ({}) as Record<string, never>);
+    const patch: { content?: string; swipeIndex?: number } = {};
+    if (typeof body.content === "string") {
+      patch.content = body.content;
+    }
+    if (typeof body.swipeIndex === "number" && Number.isInteger(body.swipeIndex)) {
+      patch.swipeIndex = body.swipeIndex;
+    }
+    if (Object.keys(patch).length === 0) {
+      return c.json(
+        { error: { code: "invalid_request", message: "content 或 swipeIndex 至少提供一项。" } },
+        400,
+      );
+    }
+    const updated = deps.db.repo.updateMessage(sessionId, messageId, patch);
+    if (updated === undefined) {
+      return c.json(
+        { error: { code: "not_found", message: "消息不存在或 swipeIndex 越界。" } },
+        404,
+      );
+    }
+    return c.json(updated);
+  });
+
   app.delete("/api/sessions/:id/messages/:messageId", (c) => {
     if (!deps.db.repo.deleteMessage(c.req.param("id"), c.req.param("messageId"))) {
       return c.json({ error: { code: "not_found", message: "消息不存在。" } }, 404);

@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import type { AppDeps } from "../app.js";
-import type { LorebookRow } from "../db/client.js";
+import type { LorebookRow, MessageRow } from "../db/client.js";
 import { streamUpstreamCompletion, UpstreamError } from "../upstream.js";
 
 /** 组装器预算的 M3 出厂常量（docs/prompt-assembly §6.1 默认值由配置层提供）。 */
@@ -68,11 +68,12 @@ export function chatRoutes(deps: AppDeps): Hono {
 
   app.post("/api/chat/stream", async (c) => {
     const body = await c.req
-      .json<{ sessionId?: unknown; content?: unknown }>()
+      .json<{ sessionId?: unknown; content?: unknown; regenerate?: unknown }>()
       .catch(() => ({}) as Record<string, never>);
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+    const regenerate = body.regenerate === true;
     const content = typeof body.content === "string" ? body.content : "";
-    if (sessionId === "" || content === "") {
+    if (sessionId === "" || (!regenerate && content === "")) {
       return c.json(
         { error: { code: "invalid_request", message: "sessionId 与 content 必填。" } },
         400,
@@ -100,13 +101,33 @@ export function chatRoutes(deps: AppDeps): Hono {
       );
     }
 
-    // 用户消息先落库，使组装历史与会话记录一致
-    const userMessage = deps.db.repo.insertMessage(sessionId, {
-      role: "user",
-      content,
-      swipeCandidates: [],
-    });
+    // M5 regenerate：目标 = 最后一条 assistant 消息；新回复作为其 swipe 候选追加
+    const allMessages = deps.db.repo.listMessages(sessionId);
+    let regenerateTarget: MessageRow | null = null;
+    if (regenerate) {
+      for (let i = allMessages.length - 1; i >= 0; i -= 1) {
+        const m = allMessages[i];
+        if (m !== undefined && m.role === "assistant") {
+          regenerateTarget = m;
+          break;
+        }
+      }
+      if (regenerateTarget === null) {
+        return c.json(
+          { error: { code: "regenerate_target_missing", message: "会话中没有可重新生成的回复。" } },
+          400,
+        );
+      }
+    }
 
+    // 正常模式：用户消息先落库，使组装历史与会话记录一致
+    const userMessage = regenerate
+      ? null
+      : deps.db.repo.insertMessage(sessionId, {
+          role: "user",
+          content,
+          swipeCandidates: [],
+        });
     const card = JSON.parse(character.data) as CharacterCard;
 
     // M4：会话组装计划（null = 引擎默认计划）
@@ -145,11 +166,16 @@ export function chatRoutes(deps: AppDeps): Hono {
     }
 
     const personaName = "User";
+    // 组装用历史：正常模式 = 含新 user 消息的全量；regenerate = 排除目标回复及其后
+    const historyRows: readonly MessageRow[] =
+      regenerateTarget !== null
+        ? allMessages.filter((m) => m.seq < regenerateTarget.seq)
+        : [...allMessages, ...(userMessage !== null ? [userMessage] : [])];
     const result = assemblePrompt({
       card,
       ...(plan !== undefined ? { plan } : {}),
       persona: { name: personaName, description: "" },
-      history: deps.db.repo.listMessages(sessionId).map((m) => ({
+      history: historyRows.map((m) => ({
         id: m.id,
         role: m.role === "assistant" ? "assistant" : "user",
         name: m.role === "assistant" ? card.name : personaName,
@@ -178,7 +204,7 @@ export function chatRoutes(deps: AppDeps): Hono {
         event: "meta",
         data: JSON.stringify({
           sessionId,
-          userMessageId: userMessage.id,
+          userMessageId: userMessage?.id ?? null,
           tokensTotal: result.stats.tokensTotal,
         }),
       });
@@ -199,11 +225,17 @@ export function chatRoutes(deps: AppDeps): Hono {
           accumulated += delta;
           await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: delta }) });
         }
-        const saved = deps.db.repo.insertMessage(sessionId, {
-          role: "assistant",
-          content: accumulated,
-          swipeCandidates: [accumulated],
-        });
+        const saved =
+          regenerateTarget !== null
+            ? deps.db.repo.appendSwipeCandidate(sessionId, regenerateTarget.id, accumulated)
+            : deps.db.repo.insertMessage(sessionId, {
+                role: "assistant",
+                content: accumulated,
+                swipeCandidates: [accumulated],
+              });
+        if (saved === undefined) {
+          throw new Error("保存回复失败：目标消息不存在。");
+        }
         await stream.writeSSE({
           event: "done",
           data: JSON.stringify({ messageId: saved.id, content: accumulated }),

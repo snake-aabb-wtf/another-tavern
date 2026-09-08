@@ -28,9 +28,12 @@ export function settingsRoutes(deps: AppDeps): Hono {
       typeof body.sampling === "object" && body.sampling !== null && !Array.isArray(body.sampling)
         ? (body.sampling as Record<string, unknown>)
         : {};
+    // M5：apiKey 为空/缺省 = 保留原值（前端不回显明文，只有用户输入新 key 才更新）
+    const existing = deps.db.repo.getSettings();
+    const newApiKey = readString(body.apiKey);
     const saved = deps.db.repo.putSettings({
       baseUrl: readString(body.baseUrl),
-      apiKey: readString(body.apiKey),
+      apiKey: newApiKey !== "" ? newApiKey : existing.apiKey,
       model: readString(body.model),
       sampling,
     });

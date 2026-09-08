@@ -109,6 +109,15 @@ export class Repo {
     return row === undefined ? undefined : mapCharacter(row as Record<string, unknown>);
   }
 
+  /** M5：更新角色卡（data 全文与显示名）。 */
+  updateCharacter(id: string, name: string, data: string): boolean {
+    return (
+      this.sqlite
+        .prepare("UPDATE characters SET name = ?, data = ? WHERE id = ?")
+        .run(name, data, id).changes > 0
+    );
+  }
+
   // —— sessions ——
 
   insertSession(id: string, characterId: string, title: string, planId: string | null): SessionRow {
@@ -197,6 +206,66 @@ export class Repo {
         .prepare("DELETE FROM messages WHERE session_id = ? AND id = ?")
         .run(sessionId, messageId).changes > 0
     );
+  }
+
+  /**
+   * M5：消息更新（编辑内容 / 切换 swipe 候选）。
+   * content 与 swipeIndex 都给时，以 swipeIndex 取候选为内容、并把该候选改写为新内容；
+   * 只给 content 时更新 content 与当前指向的候选；只给 swipeIndex 时切换并同步 content。
+   */
+  updateMessage(
+    sessionId: string,
+    messageId: string,
+    patch: { content?: string; swipeIndex?: number },
+  ): MessageRow | undefined {
+    const current = this.getMessage(sessionId, messageId);
+    if (current === undefined) {
+      return undefined;
+    }
+    const candidates = [...current.swipeCandidates];
+    let content = current.content;
+    let swipeIndex = current.swipeIndex;
+
+    if (patch.swipeIndex !== undefined) {
+      if (patch.swipeIndex < 0 || patch.swipeIndex >= candidates.length) {
+        return undefined;
+      }
+      swipeIndex = patch.swipeIndex;
+      content = candidates[swipeIndex] ?? content;
+    }
+    if (patch.content !== undefined) {
+      content = patch.content;
+      if (candidates.length > 0 && swipeIndex < candidates.length) {
+        candidates[swipeIndex] = patch.content;
+      }
+    }
+
+    this.sqlite
+      .prepare(
+        "UPDATE messages SET content = ?, swipe_candidates = ?, swipe_index = ? WHERE session_id = ? AND id = ?",
+      )
+      .run(content, JSON.stringify(candidates), swipeIndex, sessionId, messageId);
+    return this.getMessage(sessionId, messageId);
+  }
+
+  /** M5：向 assistant 消息追加一个 swipe 候选并指向它（重新生成用）。 */
+  appendSwipeCandidate(
+    sessionId: string,
+    messageId: string,
+    content: string,
+  ): MessageRow | undefined {
+    const current = this.getMessage(sessionId, messageId);
+    if (current === undefined) {
+      return undefined;
+    }
+    const candidates = [...current.swipeCandidates, content];
+    const swipeIndex = candidates.length - 1;
+    this.sqlite
+      .prepare(
+        "UPDATE messages SET content = ?, swipe_candidates = ?, swipe_index = ? WHERE session_id = ? AND id = ?",
+      )
+      .run(content, JSON.stringify(candidates), swipeIndex, sessionId, messageId);
+    return this.getMessage(sessionId, messageId);
   }
 
   private nextSeq(sessionId: string): number {
