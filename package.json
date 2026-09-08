@@ -5,9 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.5.0"
   },
   "scripts": {
+    "dev": "pnpm -r --parallel --stream run dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",

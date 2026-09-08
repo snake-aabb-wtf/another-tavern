@@ -1,5 +1,8 @@
 packages:
   - packages/*
+allowBuilds:
+  # drizzle-kit 依赖 esbuild；平台二进制经 optionalDependencies 分发，postinstall 仅校验
+  esbuild: true
 minimumReleaseAgeExclude:
   - "@typescript-eslint/eslint-plugin@8.70.0"
   - "@typescript-eslint/parser@8.70.0"

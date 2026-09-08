@@ -1,14 +1,30 @@
+/**
+ * Hono 应用工厂（docs 架构：server 只通过 engine 完成组装逻辑）。
+ * 依赖注入便于测试（内存 SQLite + fake 上游 fetch）。
+ */
+
 import { Hono } from "hono";
 
-/**
- * 创建 Hono 应用实例。
- *
- * M0 仅包含健康检查端点；完整路由、SSE 流式与 SQLite 存储在后续里程碑实现。
- */
-export function createApp(): Hono {
+import type { AppDatabase } from "./db/client.js";
+import { chatRoutes } from "./routes/chat.js";
+import { charactersRoutes } from "./routes/characters.js";
+import { sessionsRoutes } from "./routes/sessions.js";
+import { settingsRoutes } from "./routes/settings.js";
+
+export interface AppDeps {
+  db: AppDatabase;
+  /** 上游 fetch（默认 globalThis.fetch；测试注入 fake）。 */
+  upstreamFetch?: typeof fetch;
+}
+
+export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
 
   app.get("/api/health", (c) => c.json({ ok: true }));
+  app.route("/", charactersRoutes(deps));
+  app.route("/", settingsRoutes(deps));
+  app.route("/", sessionsRoutes(deps));
+  app.route("/", chatRoutes(deps));
 
   return app;
 }
