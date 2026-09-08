@@ -4,12 +4,13 @@
  * 客户端断开时 abort 上游请求。
  */
 
-import type { CharacterCard } from "@another-tavern/engine";
-import { assemblePrompt, tokenizerForModel } from "@another-tavern/engine";
+import type { CharacterCard, WorldInfoBook, WorldInfoEntry } from "@another-tavern/engine";
+import { assemblePrompt, normalizePlan, tokenizerForModel } from "@another-tavern/engine";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
 import type { AppDeps } from "../app.js";
+import type { LorebookRow } from "../db/client.js";
 import { streamUpstreamCompletion, UpstreamError } from "../upstream.js";
 
 /** 组装器预算的 M3 出厂常量（docs/prompt-assembly §6.1 默认值由配置层提供）。 */
@@ -25,6 +26,42 @@ const WI_SETTINGS = {
   maxRecursionSteps: 0,
   wiBudgetPercent: 25,
 } as const;
+
+/** 采样参数白名单：仅这些键会透传到上游请求体。 */
+const SAMPLING_WHITELIST = [
+  "temperature",
+  "top_p",
+  "max_tokens",
+  "frequency_penalty",
+  "presence_penalty",
+  "stop",
+] as const;
+
+function allowedSampling(sampling: Record<string, unknown>): Record<string, unknown> {
+  const extra: Record<string, unknown> = {};
+  for (const key of SAMPLING_WHITELIST) {
+    if (sampling[key] !== undefined) {
+      extra[key] = sampling[key];
+    }
+  }
+  return extra;
+}
+
+/** 把库中的世界书行 + 条目还原为引擎 WorldInfoBook。 */
+function loadBookWithEntries(deps: AppDeps, row: LorebookRow): WorldInfoBook {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description === "" ? null : row.description,
+    scanDepth: null,
+    tokenBudget: null,
+    recursiveScanning: null,
+    entries: deps.db.repo
+      .listEntries(row.id)
+      .map((entry) => JSON.parse(entry.data) as WorldInfoEntry),
+    extensions: {},
+  };
+}
 
 export function chatRoutes(deps: AppDeps): Hono {
   const app = new Hono();
@@ -71,9 +108,46 @@ export function chatRoutes(deps: AppDeps): Hono {
     });
 
     const card = JSON.parse(character.data) as CharacterCard;
+
+    // M4：会话组装计划（null = 引擎默认计划）
+    let plan;
+    if (session.planId !== null) {
+      const planRow = deps.db.repo.getPlan(session.planId);
+      if (planRow === undefined) {
+        return c.json(
+          {
+            error: {
+              code: "not_found",
+              message: "会话绑定的组装计划不存在（已回落默认计划可重置）。",
+            },
+          },
+          404,
+        );
+      }
+      plan = normalizePlan(JSON.parse(planRow.data)).plan;
+    }
+
+    // M4：三源世界书——卡内书 + 角色挂载书 + 全局书（按 id 去重，先到先得）
+    const linkedIds = deps.db.repo.listCharacterLorebookIds(session.characterId);
+    const linkedBooks = linkedIds
+      .map((id) => deps.db.repo.getLorebook(id))
+      .filter((book): book is NonNullable<typeof book> => book !== undefined);
+    const globalBooks = deps.db.repo.listGlobalLorebooks();
+    const books: WorldInfoBook[] = [];
+    if (card.characterBook !== null) {
+      books.push(card.characterBook);
+    }
+    for (const row of [...linkedBooks, ...globalBooks]) {
+      if (books.some((b) => b.id === row.id)) {
+        continue;
+      }
+      books.push(loadBookWithEntries(deps, row));
+    }
+
     const personaName = "User";
     const result = assemblePrompt({
       card,
+      ...(plan !== undefined ? { plan } : {}),
       persona: { name: personaName, description: "" },
       history: deps.db.repo.listMessages(sessionId).map((m) => ({
         id: m.id,
@@ -85,12 +159,15 @@ export function chatRoutes(deps: AppDeps): Hono {
       globalPrompts: { main: "", postHistory: "" },
       authorNote: null,
       worldInfo: {
-        books: card.characterBook !== null ? [card.characterBook] : [],
+        books,
         settings: { ...WI_SETTINGS },
       },
       budget: { ...BUDGET },
       tokenizer: tokenizerForModel(settings.model),
     });
+
+    // M4：记录最近一次组装的最终 messages（调试端点用）
+    deps.db.repo.updateLastMessages(sessionId, JSON.stringify(result.messages));
 
     const fetchImpl = deps.upstreamFetch ?? globalThis.fetch;
     const controller = new AbortController();
@@ -115,6 +192,7 @@ export function chatRoutes(deps: AppDeps): Hono {
             model: settings.model,
             messages: result.messages,
             signal: controller.signal,
+            extraBody: allowedSampling(settings.sampling),
           },
           fetchImpl,
         )) {

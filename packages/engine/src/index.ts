@@ -58,3 +58,22 @@ export {
   type Persona,
   type SystemSectionId,
 } from "./assembly/assemble.js";
+
+// —— 组装计划与生态导入（M4）——
+export {
+  DEFAULT_PLAN_ID,
+  DEFAULT_SYSTEM_SLOTS,
+  SYSTEM_SLOT_IDS,
+  defaultAssemblyPlan,
+  normalizePlan,
+} from "./assembly/plan.js";
+export type {
+  AssemblyPlan,
+  PostHistoryPlan,
+  SystemPlanSlot,
+  SystemSlotId,
+} from "./assembly/plan.js";
+export { parseOpenAiPreset, PresetParseError } from "./assembly/parse-preset.js";
+export type { ParsedPreset } from "./assembly/parse-preset.js";
+export { parseSillyTavernWorldInfo, WorldInfoParseError } from "./worldinfo/parse-native.js";
+export type { ParsedWorldInfo } from "./worldinfo/parse-native.js";

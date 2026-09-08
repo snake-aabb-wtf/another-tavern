@@ -1,10 +1,10 @@
 /**
- * 数据库表结构（M3 任务 §1）。
+ * 数据库表结构。
  * 字段变更走 drizzle-kit generate 生成迁移；运行时由 db/migrate.ts 应用。
  */
 
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 const timestamp = () =>
   text("created_at")
@@ -19,12 +19,61 @@ export const characters = sqliteTable("characters", {
   createdAt: timestamp(),
 });
 
+/** 组装计划（M4）：data 为引擎 AssemblyPlan JSON 全文。 */
+export const assemblyPlans = sqliteTable("assembly_plans", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  data: text("data").notNull(),
+  createdAt: timestamp(),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+});
+
+/** 世界书（M4）：is_global=1 的书参与所有会话组装。 */
+export const lorebooks = sqliteTable("lorebooks", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  isGlobal: integer("is_global").notNull().default(0),
+  createdAt: timestamp(),
+});
+
+/** 世界书条目（M4）：data 为引擎 WorldInfoEntry JSON 全文。 */
+export const lorebookEntries = sqliteTable("lorebook_entries", {
+  id: text("id").primaryKey(),
+  bookId: text("book_id")
+    .notNull()
+    .references(() => lorebooks.id, { onDelete: "cascade" }),
+  uid: text("uid").notNull(),
+  data: text("data").notNull(),
+  createdAt: timestamp(),
+});
+
+/** 角色卡 ↔ 世界书挂载（M4）：多对多。 */
+export const characterLorebooks = sqliteTable(
+  "character_lorebooks",
+  {
+    characterId: text("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    bookId: text("book_id")
+      .notNull()
+      .references(() => lorebooks.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.characterId, table.bookId] })],
+);
+
 export const chatSessions = sqliteTable("chat_sessions", {
   id: text("id").primaryKey(),
   characterId: text("character_id")
     .notNull()
     .references(() => characters.id, { onDelete: "cascade" }),
   title: text("title").notNull().default(""),
+  /** M4：会话组装计划；null = 引擎默认计划。删计划回落默认。 */
+  planId: text("plan_id").references(() => assemblyPlans.id, { onDelete: "set null" }),
+  /** M4：最近一次组装的最终 messages JSON（调试端点用）。 */
+  lastMessages: text("last_messages"),
   createdAt: timestamp(),
 });
 
@@ -51,6 +100,8 @@ export const settings = sqliteTable("settings", {
   baseUrl: text("base_url").notNull().default(""),
   apiKey: text("api_key").notNull().default(""),
   model: text("model").notNull().default(""),
+  /** M4：采样参数 JSON（temperature 等），白名单透传上游。 */
+  sampling: text("sampling").notNull().default("{}"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

@@ -22,7 +22,7 @@ import type {
 } from "./model.js";
 
 /** 数字编码 ↔ 位置（对齐 ST world_info_position，world-info-spec §8.2）。 */
-const POSITION_BY_NUMBER: readonly WorldInfoPosition[] = [
+export const POSITION_BY_NUMBER: readonly WorldInfoPosition[] = [
   "beforeChar",
   "afterChar",
   "anTop",
@@ -34,10 +34,10 @@ const POSITION_BY_NUMBER: readonly WorldInfoPosition[] = [
 ];
 
 /** 数字编码 ↔ 副关键词逻辑（对齐 ST world_info_logic）。 */
-const LOGIC_BY_NUMBER: readonly SelectiveLogic[] = ["andAny", "notAll", "notAny", "andAll"];
+export const LOGIC_BY_NUMBER: readonly SelectiveLogic[] = ["andAny", "notAll", "notAny", "andAll"];
 
 /** 数字编码 ↔ 注入角色（【⚠️ 待确认】映射，world-info-spec §10.4）。 */
-const ROLE_BY_NUMBER: readonly InjectionRole[] = ["system", "user", "assistant"];
+export const ROLE_BY_NUMBER: readonly InjectionRole[] = ["system", "user", "assistant"];
 
 /** V2 entry 已知顶层键（不在此列的并入 extensions，不销毁）。 */
 const KNOWN_ENTRY_KEYS = new Set([

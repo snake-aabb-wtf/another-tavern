@@ -12,7 +12,7 @@ export function sessionsRoutes(deps: AppDeps): Hono {
 
   app.post("/api/sessions", async (c) => {
     const body = await c.req
-      .json<{ characterId?: unknown; title?: unknown }>()
+      .json<{ characterId?: unknown; title?: unknown; planId?: unknown }>()
       .catch(() => ({}) as Record<string, never>);
     const characterId = typeof body.characterId === "string" ? body.characterId : "";
     if (characterId === "") {
@@ -22,10 +22,18 @@ export function sessionsRoutes(deps: AppDeps): Hono {
     if (character === undefined) {
       return c.json({ error: { code: "not_found", message: "角色卡不存在。" } }, 404);
     }
+    // M4：可选组装计划（null/缺省 = 引擎默认计划）
+    let planId: string | null = null;
+    if (typeof body.planId === "string" && body.planId !== "") {
+      if (deps.db.repo.getPlan(body.planId) === undefined) {
+        return c.json({ error: { code: "not_found", message: "组装计划不存在。" } }, 404);
+      }
+      planId = body.planId;
+    }
 
     const id = crypto.randomUUID();
     const title = typeof body.title === "string" ? body.title : "";
-    const session = deps.db.repo.insertSession(id, characterId, title);
+    const session = deps.db.repo.insertSession(id, characterId, title, planId);
 
     const card = JSON.parse(character.data) as { firstMes?: string };
     if (typeof card.firstMes === "string" && card.firstMes !== "") {
@@ -48,6 +56,39 @@ export function sessionsRoutes(deps: AppDeps): Hono {
       return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
     }
     return c.json({ session, messages: deps.db.repo.listMessages(session.id) });
+  });
+
+  // M4：切换会话组装计划（null = 回落默认）
+  app.put("/api/sessions/:id/plan", async (c) => {
+    const sessionId = c.req.param("id");
+    if (deps.db.repo.getSession(sessionId) === undefined) {
+      return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
+    }
+    const body = await c.req
+      .json<{ planId?: unknown }>()
+      .catch(() => ({}) as Record<string, never>);
+    if (typeof body.planId === "string" && body.planId !== "") {
+      if (deps.db.repo.getPlan(body.planId) === undefined) {
+        return c.json({ error: { code: "not_found", message: "组装计划不存在。" } }, 404);
+      }
+      deps.db.repo.setSessionPlan(sessionId, body.planId);
+      return c.json({ sessionId, planId: body.planId });
+    }
+    deps.db.repo.setSessionPlan(sessionId, null);
+    return c.json({ sessionId, planId: null });
+  });
+
+  // M4：调试端点——最近一次组装的最终 messages
+  app.get("/api/sessions/:id/last-prompt", (c) => {
+    const sessionId = c.req.param("id");
+    if (deps.db.repo.getSession(sessionId) === undefined) {
+      return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
+    }
+    const last = deps.db.repo.getLastMessages(sessionId);
+    if (last === null) {
+      return c.json({ error: { code: "no_prompt", message: "该会话尚未进行过组装。" } }, 404);
+    }
+    return c.json({ sessionId, messages: JSON.parse(last) });
   });
 
   app.delete("/api/sessions/:id", (c) => {

@@ -16,21 +16,30 @@ export function settingsRoutes(deps: AppDeps): Hono {
       model: value.model,
       apiKey: maskApiKey(value.apiKey),
       hasApiKey: value.apiKey !== "",
+      sampling: value.sampling,
     });
   });
 
   app.put("/api/settings", async (c) => {
-    const body = await c.req.json<{ baseUrl?: unknown; apiKey?: unknown; model?: unknown }>();
+    const body = await c.req
+      .json<{ baseUrl?: unknown; apiKey?: unknown; model?: unknown; sampling?: unknown }>()
+      .catch(() => ({}) as Record<string, never>);
+    const sampling =
+      typeof body.sampling === "object" && body.sampling !== null && !Array.isArray(body.sampling)
+        ? (body.sampling as Record<string, unknown>)
+        : {};
     const saved = deps.db.repo.putSettings({
       baseUrl: readString(body.baseUrl),
       apiKey: readString(body.apiKey),
       model: readString(body.model),
+      sampling,
     });
     return c.json({
       baseUrl: saved.baseUrl,
       model: saved.model,
       apiKey: maskApiKey(saved.apiKey),
       hasApiKey: saved.apiKey !== "",
+      sampling: saved.sampling,
     });
   });
 

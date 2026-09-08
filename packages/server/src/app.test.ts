@@ -154,7 +154,13 @@ describe("server API（内存 SQLite + fake 上游）", () => {
 
     it("初始 GET 返回空配置", async () => {
       const res = await createApp(deps).request("/api/settings");
-      expect(await res.json()).toEqual({ baseUrl: "", model: "", apiKey: "", hasApiKey: false });
+      expect(await res.json()).toEqual({
+        baseUrl: "",
+        model: "",
+        apiKey: "",
+        hasApiKey: false,
+        sampling: {},
+      });
     });
   });
 

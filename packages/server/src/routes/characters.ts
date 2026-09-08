@@ -67,6 +67,38 @@ export function charactersRoutes(deps: AppDeps): Hono {
     });
   });
 
+  // M4：世界书挂载（全量设置挂载集合）
+  app.get("/api/characters/:id/lorebooks", (c) => {
+    if (deps.db.repo.getCharacter(c.req.param("id")) === undefined) {
+      return c.json({ error: { code: "not_found", message: "角色卡不存在。" } }, 404);
+    }
+    return c.json({ bookIds: deps.db.repo.listCharacterLorebookIds(c.req.param("id")) });
+  });
+
+  app.put("/api/characters/:id/lorebooks", async (c) => {
+    const characterId = c.req.param("id");
+    if (deps.db.repo.getCharacter(characterId) === undefined) {
+      return c.json({ error: { code: "not_found", message: "角色卡不存在。" } }, 404);
+    }
+    const body = await c.req
+      .json<{ bookIds?: unknown }>()
+      .catch(() => ({}) as Record<string, never>);
+    if (!Array.isArray(body.bookIds) || body.bookIds.some((b) => typeof b !== "string")) {
+      return c.json(
+        { error: { code: "invalid_request", message: "bookIds 必须是字符串数组。" } },
+        400,
+      );
+    }
+    const bookIds = body.bookIds as string[];
+    for (const bookId of bookIds) {
+      if (deps.db.repo.getLorebook(bookId) === undefined) {
+        return c.json({ error: { code: "not_found", message: `世界书 ${bookId} 不存在。` } }, 404);
+      }
+    }
+    deps.db.repo.setCharacterLorebooks(characterId, bookIds);
+    return c.json({ bookIds });
+  });
+
   return app;
 }
 

@@ -21,6 +21,8 @@ export interface UpstreamRequest {
   model: string;
   messages: ReadonlyArray<{ role: "system" | "user" | "assistant"; content: string }>;
   signal: AbortSignal;
+  /** 采样参数等附加字段（白名单过滤后）原样并入请求体。 */
+  extraBody?: Record<string, unknown>;
 }
 
 type FetchImpl = typeof fetch;
@@ -41,6 +43,7 @@ export async function* streamUpstreamCompletion(
       model: req.model,
       messages: req.messages,
       stream: true,
+      ...(req.extraBody ?? {}),
     }),
     signal: req.signal,
   });

@@ -10,21 +10,14 @@ import type { WorldInfoBook } from "../worldinfo/model.js";
 import { resolveWorldInfo, type ResolveWorldInfoSettings } from "../worldinfo/resolve.js";
 import type { Tokenizer } from "../tokenizer/tokenizer.js";
 import { substituteMacros, substituteOriginal } from "./macros.js";
+import { defaultAssemblyPlan, type AssemblyPlan, type SystemSlotId } from "./plan.js";
 
 /** 内置默认 main prompt（对齐 ST 源码 default_main_prompt 原文）。 */
 export const DEFAULT_MAIN_PROMPT =
   "Write {{char}}'s next reply in a fictional chat between {{charIfNotGroup}} and {{user}}.";
 
-/** system 区段 id（§2.1）。 */
-export type SystemSectionId =
-  | "main"
-  | "wiBefore"
-  | "persona"
-  | "description"
-  | "personality"
-  | "scenario"
-  | "wiAfter"
-  | "examples";
+/** system 区段 id（§2.1）。与组装计划槽位 id 一致。 */
+export type SystemSectionId = SystemSlotId;
 
 export interface Persona {
   name: string;
@@ -64,6 +57,8 @@ export interface AssemblyInput {
     /** 为回复预留（§6.1.2）。 */
     reserveCompletion: number;
   };
+  /** 组装计划；缺省 = 默认计划（docs §2.1 固定段序，行为与 M2/M3 一致）。 */
+  plan?: AssemblyPlan;
   tokenizer: Tokenizer;
 }
 
@@ -112,17 +107,6 @@ export class AssemblyError extends Error {
   }
 }
 
-const SECTION_ORDER: readonly SystemSectionId[] = [
-  "main",
-  "wiBefore",
-  "persona",
-  "description",
-  "personality",
-  "scenario",
-  "wiAfter",
-  "examples",
-];
-
 interface DepthSlot {
   an: AssemblyMessage | null;
   wi: Map<"system" | "user" | "assistant", string[]>;
@@ -133,6 +117,13 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const { card, persona, tokenizer } = input;
   const warnings: string[] = [];
   const count = (text: string): number => tokenizer.count(text);
+
+  // —— 组装计划（M4）：缺省 = docs §2.1 固定段序；槽位只编排顺序与启停 ——
+  const plan: AssemblyPlan = input.plan ?? defaultAssemblyPlan();
+  const orderedSlots = [...plan.systemSlots].sort((a, b) => a.order - b.order);
+  const slotEnabled = new Map<SystemSlotId, boolean>(
+    plan.systemSlots.map((slot) => [slot.id, slot.enabled]),
+  );
 
   // —— 步骤 0：宏替换（§7，单次、不递归求值）——
   const macroCtx = { charName: card.name, userName: persona.name };
@@ -246,17 +237,26 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   }
 
   // —— 步骤 4：裁剪循环（§6.3：examples 块 → 最旧历史 → 硬错误）——
+  function sectionText(id: SystemSlotId, from: number): string {
+    if (id === "examples") {
+      return examplesTextAt(from);
+    }
+    if (id === "wiBefore" || id === "wiAfter") {
+      return wiTexts[id];
+    }
+    return sectionSources[id];
+  }
   const usable = Math.max(0, input.budget.contextSize - input.budget.reserveCompletion);
   const fixedSectionTokens: Record<string, number> = {};
-  for (const id of SECTION_ORDER) {
-    if (id === "examples") {
+  for (const slot of orderedSlots) {
+    if (slot.id === "examples") {
       continue;
     }
-    const text = id === "wiBefore" || id === "wiAfter" ? wiTexts[id] : sectionSources[id];
-    fixedSectionTokens[id] = text.trim() !== "" ? count(text) : 0;
+    const text = slotEnabled.get(slot.id) === false ? "" : sectionText(slot.id, 0);
+    fixedSectionTokens[slot.id] = text.trim() !== "" ? count(text) : 0;
   }
   const depthToken = (text: string): number => (text.trim() !== "" ? count(text) : 0);
-  const phiTokens = depthToken(phiText);
+  const phiTokens = plan.postHistory.enabled ? depthToken(phiText) : 0;
   let anTokens = 0;
   let wiAtDepthTokens = 0;
   for (const slot of slots.values()) {
@@ -327,16 +327,14 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   // —— 步骤 5：messages 装配 ——
   const systemSections: string[] = [];
   const tokensBySection: Record<string, number> = {};
-  for (const id of SECTION_ORDER) {
-    const text =
-      id === "examples"
-        ? examplesTextAt(examplesFrom)
-        : id === "wiBefore" || id === "wiAfter"
-          ? wiTexts[id]
-          : sectionSources[id];
+  for (const slot of orderedSlots) {
+    if (slotEnabled.get(slot.id) === false) {
+      continue;
+    }
+    const text = sectionText(slot.id, examplesFrom);
     if (text.trim() !== "") {
       systemSections.push(text);
-      tokensBySection[id] = count(text);
+      tokensBySection[slot.id] = count(text);
     }
   }
   const messages: AssemblyMessage[] = [];
@@ -385,7 +383,7 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   }
   messages.push(...chatOnly);
 
-  if (phiText.trim() !== "") {
+  if (plan.postHistory.enabled && phiText.trim() !== "") {
     messages.push({ role: "system", content: phiText });
     tokensBySection.phi = count(phiText);
   }
