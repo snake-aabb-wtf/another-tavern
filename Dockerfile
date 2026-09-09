@@ -8,7 +8,7 @@ RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile \
  && pnpm build \
- && pnpm --filter @another-tavern/server deploy --prod /out
+ && pnpm --filter @another-tavern/server deploy --legacy --prod /out
 
 FROM node:22-alpine
 WORKDIR /app
