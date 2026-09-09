@@ -1,1 +1,176 @@
 @import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   「烛下酒馆」设计令牌 —— 全应用唯一颜色来源。
+   语义：tavern=暖褐底色阶 / candle=烛焰琥珀（唯一强调色）/
+        brass=黄铜（次级、图标、徽标） / parchment=羊皮纸（assistant 签名卡）/
+        inkwell=纸上墨 / ink=暗底正文阶 / ember=危险 / moss=成功。
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --color-tavern-950: #17110b; /* 应用底：暖褐黑 */
+  --color-tavern-900: #201812; /* 面板 */
+  --color-tavern-800: #2b2118; /* 抬升卡 */
+  --color-tavern-700: #3a2d1f; /* hover 面/强边框 */
+  --color-line: #3d3226; /* 分隔线 */
+  --color-candle-300: #f0c078; /* 烛焰琥珀（唯一强调色，hover 亮阶） */
+  --color-candle-400: #e0a458;
+  --color-candle-500: #c98a3b;
+  --color-candle-600: #a86f2c;
+  --color-brass-400: #a58c62; /* 黄铜：次级/图标 */
+  --color-brass-500: #8a744e;
+  --color-parchment-100: #efe3c8; /* 羊皮纸：角色消息签名卡 */
+  --color-parchment-200: #e6d7b4;
+  --color-inkwell-900: #2e2416; /* 纸上墨 */
+  --color-ink-100: #ece4d3; /* 正文 */
+  --color-ink-300: #cfc3ab;
+  --color-ink-400: #a89a80; /* 弱化 */
+  --color-ink-500: #7d7260;
+  --color-ember-400: #d47c5f; /* 危险 */
+  --color-ember-500: #c25e42;
+  --color-moss-500: #7fa663; /* 成功 */
+  --font-display: Georgia, "Times New Roman", "Songti SC", "Noto Serif SC", SimSun, serif;
+  --shadow-panel: 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 0.5);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-tavern-950);
+    /* 唯一背景装饰：极淡顶部烛光晕（静态） */
+    background-image: radial-gradient(
+      ellipse 60% 40% at 50% 0%,
+      rgb(224 164 88 / 0.06),
+      transparent
+    );
+    background-repeat: no-repeat;
+    color: var(--color-ink-100);
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-candle-600) 40%, transparent);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-tavern-700) var(--color-tavern-900);
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-tavern-900);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-tavern-700);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-candle-600);
+  }
+
+  /* 全局键盘焦点可见性（按钮/链接；输入框走 .input-base 的 focus ring） */
+  :where(button, a, [role="button"]):focus-visible {
+    outline: 2px solid var(--color-candle-300);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-candle-500 hover:bg-candle-400 text-tavern-950 font-medium rounded-lg px-3 py-1.5 text-sm transition-colors;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply focus-visible:outline-2 outline-offset-2 outline-candle-300;
+    @apply active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply border border-line bg-tavern-800 hover:bg-tavern-700 text-ink-100 rounded-lg px-3 py-1.5 text-sm transition-colors;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply focus-visible:outline-2 outline-offset-2 outline-candle-300;
+  }
+
+  .btn-ghost {
+    @apply text-ink-400 hover:text-ink-100 hover:bg-tavern-800 rounded-md px-2 py-1 text-xs transition-colors;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply focus-visible:outline-2 outline-offset-2 outline-candle-300;
+  }
+
+  /* 删除类小操作：ember 色 */
+  .btn-ghost-danger {
+    @apply text-ember-400 hover:text-ember-500 hover:bg-tavern-800 rounded-md px-2 py-1 text-xs transition-colors;
+    @apply disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply focus-visible:outline-2 outline-offset-2 outline-candle-300;
+  }
+
+  /* input / select / textarea 通用基底（宽度按需内联） */
+  .input-base {
+    @apply bg-tavern-900 border border-line rounded-md px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-500 outline-none;
+    @apply focus:border-candle-500 focus:ring-1 focus:ring-candle-500;
+  }
+
+  .label-base {
+    @apply mb-1 block text-xs text-ink-400;
+  }
+
+  .panel {
+    @apply bg-tavern-900 border border-line rounded-xl shadow-panel;
+  }
+
+  /* 弹窗面板（配 bg-tavern-950/70 遮罩） */
+  .panel-pop {
+    @apply bg-tavern-900 border border-line rounded-xl shadow-pop;
+  }
+
+  .page-title {
+    @apply font-display text-lg text-ink-100;
+  }
+
+  /* 消息挂载轻浮现 */
+  .msg-enter {
+    animation: tavern-msg-in 200ms ease-out;
+  }
+
+  /* 琥珀呼吸点：流式/加载指示 */
+  .breathe {
+    animation: tavern-breathe 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes tavern-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tavern-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .btn-primary:active {
+    transform: none;
+    scale: none;
+  }
+}

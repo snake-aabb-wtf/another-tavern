@@ -35,7 +35,7 @@ export default function ChatView() {
   const effectivePlanId = session?.planId ?? settings?.defaultPlanId ?? null;
   const effectivePlanName =
     effectivePlanId === null
-      ? "内置默认"
+      ? t.builtinDefault
       : (plans.find((p) => p.id === effectivePlanId)?.name ?? effectivePlanId);
   void effectivePlanName; // 预留给计划详情浮层
 
@@ -45,7 +45,7 @@ export default function ChatView() {
 
   if (currentId === null) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-ink-400">
         {t.pickSession}
       </div>
     );
@@ -63,12 +63,14 @@ export default function ChatView() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 px-4 py-2 text-xs text-neutral-400">
-        <span className="text-sm text-neutral-200">{session?.title || "会话"}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-2 text-xs text-ink-400">
+        <span className="font-display text-sm text-ink-100">
+          {session?.title || t.untitledSession}
+        </span>
         <span className="flex items-center gap-1">
           {t.planLabel}
           <select
-            className="rounded bg-neutral-900 px-1 py-0.5 text-xs"
+            className="input-base"
             value={session?.planId ?? ""}
             onChange={(e) => void setPlan(e.target.value === "" ? null : e.target.value)}
           >
@@ -88,7 +90,7 @@ export default function ChatView() {
         </span>
         <span>{t.loreSources(linkedBookIds.length, globalBooks.length)}</span>
         <button
-          className="ml-auto rounded px-2 py-0.5 hover:bg-neutral-800 hover:text-neutral-200"
+          className="btn-ghost ml-auto"
           onClick={() => {
             void fetchLastPrompt();
             setShowPrompt((v) => !v);
@@ -99,16 +101,16 @@ export default function ChatView() {
       </div>
 
       {showPrompt && (
-        <div className="max-h-60 space-y-2 overflow-y-auto border-b border-neutral-800 bg-neutral-900/60 p-3">
+        <div className="max-h-60 space-y-2 overflow-y-auto border-b border-line bg-tavern-900/60 p-3">
           {lastPrompt === null ? (
-            <p className="text-xs text-neutral-500">{t.noPromptYet}</p>
+            <p className="text-xs text-ink-500">{t.noPromptYet}</p>
           ) : (
             lastPrompt.messages.map((m, i) => (
               <div key={i} className="text-xs">
-                <span className="mr-2 rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-300">
+                <span className="mr-2 rounded-md bg-tavern-800 px-1.5 py-0.5 text-brass-400">
                   {m.role}
                 </span>
-                <span className="whitespace-pre-wrap text-neutral-300">{m.content}</span>
+                <span className="whitespace-pre-wrap text-ink-300">{m.content}</span>
               </div>
             ))
           )}
@@ -121,17 +123,27 @@ export default function ChatView() {
         ))}
         {streaming !== null && (
           <div className="flex flex-col items-start">
-            <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-neutral-800 px-3 py-2 text-sm text-neutral-100">
-              {streaming.text || "…"}
+            <div className="msg-enter max-w-[85%] whitespace-pre-wrap break-words rounded-lg border-l-2 border-brass-500 bg-parchment-100 px-4 py-3 text-sm text-inkwell-900 shadow-panel">
+              {streaming.text === "" ? (
+                <span className="inline-flex items-center gap-1.5 text-ink-500">
+                  <span
+                    className="breathe inline-block h-1.5 w-1.5 rounded-full bg-candle-400"
+                    aria-hidden="true"
+                  />
+                  {t.streamingPlaceholder}
+                </span>
+              ) : (
+                streaming.text
+              )}
             </div>
           </div>
         )}
-        {error !== null && <p className="text-xs text-red-400">{error}</p>}
+        {error !== null && <p className="text-xs text-ember-400">{error}</p>}
         <div ref={bottomRef} />
       </div>
-      <div className="flex gap-2 border-t border-neutral-800 p-3">
+      <div className="flex gap-2 border-t border-line p-3">
         <textarea
-          className="h-16 flex-1 resize-none rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1"
+          className="input-base h-16 flex-1 resize-none"
           placeholder={t.inputPlaceholder}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -143,14 +155,14 @@ export default function ChatView() {
           }}
         />
         <button
-          className="self-end rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-600 disabled:opacity-40"
+          className="btn-primary self-end"
           disabled={busy || draft.trim() === ""}
           onClick={submit}
         >
           {t.send}
         </button>
         <button
-          className="self-end rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700 disabled:opacity-40"
+          className="btn-secondary self-end"
           disabled={busy}
           onClick={() => void regenerate()}
         >

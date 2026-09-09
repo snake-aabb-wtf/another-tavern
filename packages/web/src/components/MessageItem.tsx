@@ -24,27 +24,38 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
 
   return (
     <div className={`flex flex-col ${isAssistant ? "items-start" : "items-end"}`}>
-      <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
-          isAssistant ? "bg-neutral-800 text-neutral-100" : "bg-blue-800 text-blue-50"
-        }`}
-      >
-        {editing ? (
-          <textarea
-            autoFocus
-            className="min-h-20 w-72 rounded bg-neutral-900 p-2 text-sm"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-        ) : (
-          message.content
-        )}
-      </div>
-      <div className="mt-1 flex h-6 items-center gap-2 text-xs text-neutral-500">
+      {isAssistant ? (
+        <div className="msg-enter max-w-[85%] whitespace-pre-wrap break-words rounded-lg border-l-2 border-brass-500 bg-parchment-100 px-4 py-3 text-sm text-inkwell-900 shadow-panel">
+          {editing ? (
+            <textarea
+              autoFocus
+              className="min-h-20 w-72 rounded-md border border-brass-500/40 bg-parchment-100 px-2.5 py-1.5 text-sm text-inkwell-900 outline-none focus:border-brass-500"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          ) : (
+            message.content
+          )}
+        </div>
+      ) : (
+        <div className="msg-enter max-w-[85%] whitespace-pre-wrap break-words rounded-lg border border-candle-600/40 bg-tavern-800 px-4 py-3 text-sm text-ink-100">
+          {editing ? (
+            <textarea
+              autoFocus
+              className="input-base min-h-20 w-72"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+          ) : (
+            message.content
+          )}
+        </div>
+      )}
+      <div className="mt-1 flex h-6 items-center gap-2 text-xs text-ink-500">
         {editing ? (
           <>
             <button
-              className="rounded px-2 py-0.5 hover:bg-neutral-800 hover:text-neutral-200"
+              className="btn-ghost"
               onClick={() => {
                 void editMessage(message.id, draft).then(() => setEditing(false));
               }}
@@ -52,7 +63,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
               {t.save}
             </button>
             <button
-              className="rounded px-2 py-0.5 hover:bg-neutral-800 hover:text-neutral-200"
+              className="btn-ghost"
               onClick={() => {
                 setDraft(message.content);
                 setEditing(false);
@@ -64,7 +75,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
         ) : (
           <>
             <button
-              className="hover:text-neutral-200"
+              className="btn-ghost"
               onClick={() => {
                 setDraft(message.content);
                 setEditing(true);
@@ -75,7 +86,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
             {isAssistant && candidateCount > 0 && (
               <span className="flex items-center gap-1">
                 <button
-                  className="disabled:opacity-30"
+                  className="btn-ghost"
                   aria-label={ti.prevCandidate}
                   disabled={message.swipeIndex <= 0 || busy}
                   onClick={() => void swipeTo(message.id, message.swipeIndex - 1)}
@@ -87,7 +98,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 </span>
                 {isLastAssistant && message.swipeIndex >= candidateCount - 1 ? (
                   <button
-                    className="disabled:opacity-30"
+                    className="btn-ghost"
                     aria-label={ti.newCandidate}
                     disabled={busy}
                     onClick={() => void regenerate()}
@@ -96,7 +107,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                   </button>
                 ) : (
                   <button
-                    className="disabled:opacity-30"
+                    className="btn-ghost"
                     aria-label={ti.nextCandidate}
                     disabled={message.swipeIndex >= candidateCount - 1 || busy}
                     onClick={() => void swipeTo(message.id, message.swipeIndex + 1)}
@@ -107,11 +118,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
               </span>
             )}
             {isAssistant && isLastAssistant && candidateCount <= 1 && (
-              <button
-                className="disabled:opacity-30"
-                disabled={busy}
-                onClick={() => void regenerate()}
-              >
+              <button className="btn-ghost" disabled={busy} onClick={() => void regenerate()}>
                 {t.regenerate}
               </button>
             )}

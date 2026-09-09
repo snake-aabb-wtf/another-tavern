@@ -16,12 +16,14 @@ export const app = {
 };
 
 export const sidebar = {
-  newSession: "＋ 新建会话（选角色卡）",
+  newSession: "前往聊天",
   deleteSession: "删除会话",
   empty: "还没有会话",
 };
 
 export const chat = {
+  untitledSession: "会话",
+  streamingPlaceholder: "…",
   pickSession: "从左侧选择一个会话，或在「角色卡」页新建会话。",
   viewLastPrompt: "查看本次最终 prompt",
   planLabel: "计划：",
@@ -71,9 +73,8 @@ export const characters = {
 export const settings = {
   title: "设置",
   baseUrl: "上游 baseUrl",
+  baseUrlPlaceholder: "https://api.example.com/v1",
   apiKey: "API key",
-  apiKeyHint: (has: boolean): string => (has ? "已配置" : "未配置"),
-  apiKeyKeepHint: "（留空保留原值）",
   apiKeyLabel: (has: boolean): string => `API key（${has ? "已配置" : "未配置"}；留空保留原值）`,
   model: "模型",
   modelPlaceholder: "gpt-4o",
@@ -139,6 +140,7 @@ export const lorebooks = {
   edit: "编辑",
   deleteEntry: "删除",
   constantBadge: "常驻",
+  close: "关闭",
   cancel: "取消",
 };
 
@@ -149,6 +151,7 @@ export const plans = {
   disabledSlots: (ids: string): string => `禁用槽位：${ids}`,
   dropped: (list: string): string => `未映射/丢弃：${list}`,
   newPlan: "＋ 新建计划",
+  noPlans: "还没有计划",
   setGlobalDefault: "设为全局默认",
   setGlobalDefaultDone: "已设为全局默认 ✓",
   followGlobalDefault: (name: string): string => `全局默认（${name}）`,

@@ -1,6 +1,7 @@
 /** 设置页：上游接口与采样参数（key 不回显明文，空提交 = 保留）。 */
 import { useEffect, useState } from "react";
 
+import { statusTone } from "../status-tone.js";
 import { useSettingsStore } from "../stores/settings.js";
 import { settings as t } from "../ui-text.js";
 
@@ -58,29 +59,24 @@ export default function SettingsPage() {
     }
   }
 
-  const label = "mb-1 block text-xs text-neutral-400";
-  const input =
-    "w-full rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1";
-  const btn = "rounded px-4 py-1.5 text-sm disabled:opacity-40";
-
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-xl space-y-4">
-        <h2 className="text-lg font-semibold">{t.title}</h2>
-        {error !== null && <p className="text-xs text-red-400">{error}</p>}
+        <h2 className="page-title">{t.title}</h2>
+        {error !== null && <p className="text-xs text-ember-400">{error}</p>}
         <div>
-          <label className={label}>{t.baseUrl}</label>
+          <label className="label-base">{t.baseUrl}</label>
           <input
-            className={input}
+            className="input-base w-full"
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.example.com/v1"
+            placeholder={t.baseUrlPlaceholder}
           />
         </div>
         <div>
-          <label className={label}>{t.apiKeyLabel(settings?.hasApiKey === true)}</label>
+          <label className="label-base">{t.apiKeyLabel(settings?.hasApiKey === true)}</label>
           <input
-            className={input}
+            className="input-base w-full"
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -88,20 +84,20 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className={label}>{t.model}</label>
+          <label className="label-base">{t.model}</label>
           <input
-            className={input}
+            className="input-base w-full"
             value={model}
             onChange={(e) => setModel(e.target.value)}
             placeholder={t.modelPlaceholder}
           />
         </div>
-        <fieldset className="space-y-3 rounded border border-neutral-800 p-3">
-          <legend className="px-1 text-xs text-neutral-400">{t.samplingLegend}</legend>
+        <fieldset className="panel space-y-3 p-3">
+          <legend className="px-1 text-xs text-brass-400">{t.samplingLegend}</legend>
           <div>
-            <label className={label}>{t.temperature}</label>
+            <label className="label-base">{t.temperature}</label>
             <input
-              className={input}
+              className="input-base w-full"
               type="number"
               step="0.1"
               min="0"
@@ -111,9 +107,9 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className={label}>{t.topP}</label>
+            <label className="label-base">{t.topP}</label>
             <input
-              className={input}
+              className="input-base w-full"
               type="number"
               step="0.05"
               min="0"
@@ -123,9 +119,9 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className={label}>{t.maxTokens}</label>
+            <label className="label-base">{t.maxTokens}</label>
             <input
-              className={input}
+              className="input-base w-full"
               type="number"
               step="1"
               min="1"
@@ -135,14 +131,10 @@ export default function SettingsPage() {
           </div>
         </fieldset>
         <div className="flex items-center gap-3">
-          <button
-            className={`${btn} bg-blue-700 text-white hover:bg-blue-600`}
-            disabled={busy}
-            onClick={() => void doSave()}
-          >
+          <button className="btn-primary" disabled={busy} onClick={() => void doSave()}>
             {t.save}
           </button>
-          <span className="text-xs text-neutral-400">{status}</span>
+          <span className={`text-xs ${statusTone(status, [t.saveFailed])}`}>{status}</span>
         </div>
       </div>
     </div>

@@ -2,14 +2,10 @@
 import { useEffect, useState } from "react";
 
 import type { LorebookEntryData } from "../api/lorebooks.js";
+import { statusTone } from "../status-tone.js";
 import { useCharactersStore } from "../stores/characters.js";
 import { useLorebooksStore } from "../stores/lorebooks.js";
-import { lorebooks as t } from "../ui-text.js";
-
-const input =
-  "w-full rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1";
-const label = "mb-1 block text-xs text-neutral-400";
-const btn = "rounded px-3 py-1.5 text-sm disabled:opacity-40";
+import { app as ta, lorebooks as t } from "../ui-text.js";
 
 export default function LorebooksPage() {
   const items = useLorebooksStore((s) => s.items);
@@ -69,9 +65,10 @@ export default function LorebooksPage() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* 左：书列表与导入 */}
-      <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-neutral-800 p-3">
-        <div className="rounded border border-dashed border-neutral-700 p-2 text-center text-xs text-neutral-500">
-          <label className="block cursor-pointer py-1 hover:text-neutral-300">
+      <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-line p-3">
+        <h2 className="page-title px-1">{ta.pages.lorebooks}</h2>
+        <div className="rounded-lg border-2 border-dashed border-line p-2 text-center text-xs text-ink-500">
+          <label className="block cursor-pointer py-1 transition-colors hover:text-ink-300">
             {t.importSt}
             {busy ? t.importing : ""}
             <input
@@ -87,7 +84,7 @@ export default function LorebooksPage() {
               }}
             />
           </label>
-          <label className="block cursor-pointer border-t border-neutral-800 py-1 hover:text-neutral-300">
+          <label className="block cursor-pointer border-t border-line py-1 transition-colors hover:text-ink-300">
             {t.importStGlobal}
             <input
               type="file"
@@ -103,21 +100,27 @@ export default function LorebooksPage() {
             />
           </label>
         </div>
-        {status !== "" && <p className="text-xs text-neutral-400">{status}</p>}
+        {status !== "" && (
+          <p
+            className={`text-xs ${statusTone(status, [t.importFailed, t.saveFailed], [t.importingStatus])}`}
+          >
+            {status}
+          </p>
+        )}
         {lastImport !== null && (
-          <div className="rounded border border-neutral-800 p-2 text-xs text-neutral-400">
-            <p className="text-neutral-200">
+          <div className="rounded-lg border border-line p-2 text-xs text-ink-400">
+            <p className="text-ink-100">
               {t.importSummary}
               {lastImport.name}
             </p>
             <p>{t.entryCount(lastImport.entryCount)}</p>
             {lastImport.warnings.length > 0 && (
-              <p className="text-amber-400">{t.warningsKept(lastImport.warnings.length)}</p>
+              <p className="text-candle-400">{t.warningsKept(lastImport.warnings.length)}</p>
             )}
           </div>
         )}
         <button
-          className={`${btn} w-full bg-neutral-800 hover:bg-neutral-700`}
+          className="btn-secondary w-full"
           disabled={busy}
           onClick={() => {
             void create(t.autoName(new Date().toLocaleString())).then((id) => void open(id));
@@ -129,33 +132,39 @@ export default function LorebooksPage() {
           {items.map((b) => (
             <li key={b.id}>
               <button
-                className={`w-full truncate rounded px-2 py-1.5 text-left text-sm ${
-                  current?.id === b.id ? "bg-neutral-800" : "hover:bg-neutral-900"
+                className={`w-full truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  current?.id === b.id
+                    ? "bg-tavern-800 text-candle-300"
+                    : "text-ink-300 hover:bg-tavern-800"
                 }`}
                 onClick={() => void open(b.id)}
               >
-                {b.isGlobal && <span className="mr-1 text-amber-400">{t.globalBadge}</span>}
+                {b.isGlobal && <span className="mr-1 text-candle-400">{t.globalBadge}</span>}
                 {b.name}
               </button>
             </li>
           ))}
-          {items.length === 0 && <li className="text-xs text-neutral-500">{t.noBooks}</li>}
+          {items.length === 0 && (
+            <li className="py-3 text-center text-xs text-ink-400">{t.noBooks}</li>
+          )}
         </ul>
       </div>
 
       {/* 右：选中书详情 */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex flex-1 flex-col overflow-y-auto p-4">
         {current === null ? (
-          <p className="text-sm text-neutral-500">{t.pickBook}</p>
+          <p className="m-auto text-sm text-ink-400">{t.pickBook}</p>
         ) : (
-          <div className="mx-auto max-w-2xl space-y-4">
+          <div className="mx-auto w-full max-w-2xl space-y-4">
             <BookEditor />
             <CharacterLinks />
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">{t.entries(current.entries.length)}</h3>
+              <h3 className="text-sm font-semibold text-ink-100">
+                {t.entries(current.entries.length)}
+              </h3>
               <div className="flex gap-2">
                 <button
-                  className="text-xs text-red-400 hover:text-red-300"
+                  className="btn-ghost-danger"
                   onClick={() => {
                     void remove(current.id);
                   }}
@@ -163,7 +172,7 @@ export default function LorebooksPage() {
                   {t.deleteBook}
                 </button>
                 <button
-                  className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
+                  className="btn-secondary"
                   onClick={() => {
                     setEditingEntry(emptyEntry());
                   }}
@@ -176,32 +185,26 @@ export default function LorebooksPage() {
               {current.entries.map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex items-center gap-2 rounded border border-neutral-800 px-3 py-2 text-sm"
+                  className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm transition-colors hover:border-candle-600/40 hover:bg-tavern-800"
                 >
-                  <span className={entry.enabled ? "" : "text-neutral-600 line-through"}>
+                  <span className={entry.enabled ? "" : "text-ink-500 line-through"}>
                     {entry.comment || entry.keys.join(", ") || entry.id}
                   </span>
                   {entry.constant && (
-                    <span className="text-xs text-amber-400">{t.constantBadge}</span>
+                    <span className="text-xs text-candle-400">{t.constantBadge}</span>
                   )}
                   <span className="ml-auto flex gap-2">
-                    <button
-                      className="text-xs hover:text-neutral-200"
-                      onClick={() => setEditingEntry(entry)}
-                    >
+                    <button className="btn-ghost" onClick={() => setEditingEntry(entry)}>
                       {t.edit}
                     </button>
-                    <button
-                      className="text-xs text-neutral-500 hover:text-red-400"
-                      onClick={() => void removeEntry(entry.id)}
-                    >
+                    <button className="btn-ghost-danger" onClick={() => void removeEntry(entry.id)}>
                       {t.deleteEntry}
                     </button>
                   </span>
                 </li>
               ))}
               {current.entries.length === 0 && (
-                <li className="text-xs text-neutral-500">{t.noEntries}</li>
+                <li className="py-3 text-center text-xs text-ink-400">{t.noEntries}</li>
               )}
             </ul>
           </div>
@@ -211,18 +214,27 @@ export default function LorebooksPage() {
       {/* 条目编辑弹层 */}
       {editingEntry !== null && (
         <div
-          className="fixed inset-0 z-20 flex items-center justify-center bg-black/60"
+          className="fixed inset-0 z-20 flex items-center justify-center bg-tavern-950/70"
           onClick={() => setEditingEntry(null)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-lg space-y-3 overflow-y-auto rounded border border-neutral-700 bg-neutral-950 p-4"
+            className="panel-pop max-h-[85vh] w-full max-w-lg space-y-3 overflow-y-auto p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold">{t.entryEditor}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink-100">{t.entryEditor}</h3>
+              <button
+                className="btn-ghost"
+                aria-label={t.close}
+                onClick={() => setEditingEntry(null)}
+              >
+                ✕
+              </button>
+            </div>
             <div>
-              <label className={label}>{t.keys}</label>
+              <label className="label-base">{t.keys}</label>
               <input
-                className={input}
+                className="input-base w-full"
                 value={editingEntry.keys.join(", ")}
                 onChange={(e) =>
                   setEditingEntry({ ...editingEntry, keys: splitKeys(e.target.value) })
@@ -230,9 +242,9 @@ export default function LorebooksPage() {
               />
             </div>
             <div>
-              <label className={label}>{t.secondaryKeys}</label>
+              <label className="label-base">{t.secondaryKeys}</label>
               <input
-                className={input}
+                className="input-base w-full"
                 value={editingEntry.secondaryKeys.join(", ")}
                 onChange={(e) =>
                   setEditingEntry({ ...editingEntry, secondaryKeys: splitKeys(e.target.value) })
@@ -240,9 +252,9 @@ export default function LorebooksPage() {
               />
             </div>
             <div>
-              <label className={label}>{t.content}</label>
+              <label className="label-base">{t.content}</label>
               <textarea
-                className={`${input} h-24`}
+                className="input-base h-24 w-full"
                 value={editingEntry.content}
                 onChange={(e) => setEditingEntry({ ...editingEntry, content: e.target.value })}
               />
@@ -251,6 +263,7 @@ export default function LorebooksPage() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="accent-candle-500"
                   checked={editingEntry.constant}
                   onChange={(e) => setEditingEntry({ ...editingEntry, constant: e.target.checked })}
                 />
@@ -259,6 +272,7 @@ export default function LorebooksPage() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="accent-candle-500"
                   checked={editingEntry.enabled}
                   onChange={(e) => setEditingEntry({ ...editingEntry, enabled: e.target.checked })}
                 />
@@ -267,6 +281,7 @@ export default function LorebooksPage() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="accent-candle-500"
                   checked={editingEntry.selective}
                   onChange={(e) =>
                     setEditingEntry({ ...editingEntry, selective: e.target.checked })
@@ -277,6 +292,7 @@ export default function LorebooksPage() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
+                  className="accent-candle-500"
                   checked={editingEntry.preventRecursion}
                   onChange={(e) =>
                     setEditingEntry({ ...editingEntry, preventRecursion: e.target.checked })
@@ -287,9 +303,9 @@ export default function LorebooksPage() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className={label}>{t.insertionOrder}</label>
+                <label className="label-base">{t.insertionOrder}</label>
                 <input
-                  className={input}
+                  className="input-base w-full"
                   type="number"
                   value={editingEntry.insertionOrder}
                   onChange={(e) =>
@@ -298,9 +314,9 @@ export default function LorebooksPage() {
                 />
               </div>
               <div>
-                <label className={label}>{t.position}</label>
+                <label className="label-base">{t.position}</label>
                 <select
-                  className={input}
+                  className="input-base w-full"
                   value={editingEntry.position}
                   onChange={(e) =>
                     setEditingEntry({
@@ -320,9 +336,9 @@ export default function LorebooksPage() {
                 </select>
               </div>
               <div>
-                <label className={label}>{t.depth}</label>
+                <label className="label-base">{t.depth}</label>
                 <input
-                  className={input}
+                  className="input-base w-full"
                   type="number"
                   value={editingEntry.depth ?? 4}
                   onChange={(e) =>
@@ -332,14 +348,11 @@ export default function LorebooksPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
-                onClick={() => setEditingEntry(null)}
-              >
+              <button className="btn-secondary" onClick={() => setEditingEntry(null)}>
                 {t.cancel}
               </button>
               <button
-                className={`${btn} bg-blue-700 text-white hover:bg-blue-600`}
+                className="btn-primary"
                 disabled={busy}
                 onClick={() => void saveCurrentEntry()}
               >
@@ -357,11 +370,11 @@ export default function LorebooksPage() {
       return null;
     }
     return (
-      <div className="space-y-2 rounded border border-neutral-800 p-3">
+      <div className="panel space-y-2 p-3">
         <div>
-          <label className={label}>{t.bookName}</label>
+          <label className="label-base">{t.bookName}</label>
           <input
-            className={input}
+            className="input-base w-full"
             defaultValue={current.name ?? ""}
             key={current.id}
             onBlur={(e) => {
@@ -373,9 +386,9 @@ export default function LorebooksPage() {
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <label className={label}>{t.tokenBudget}</label>
+            <label className="label-base">{t.tokenBudget}</label>
             <input
-              className={input}
+              className="input-base w-full"
               type="number"
               placeholder={t.tokenBudgetPlaceholder}
               defaultValue={current.tokenBudget ?? ""}
@@ -386,9 +399,9 @@ export default function LorebooksPage() {
             />
           </div>
           <div>
-            <label className={label}>{t.scanDepth}</label>
+            <label className="label-base">{t.scanDepth}</label>
             <input
-              className={input}
+              className="input-base w-full"
               type="number"
               placeholder={t.scanDepthPlaceholder}
               defaultValue={current.scanDepth ?? ""}
@@ -402,6 +415,7 @@ export default function LorebooksPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="accent-candle-500"
                 checked={current.isGlobal}
                 onChange={(e) => void updateBook(current.id, { isGlobal: e.target.checked })}
               />
@@ -418,13 +432,14 @@ export default function LorebooksPage() {
       return null;
     }
     return (
-      <div className="rounded border border-neutral-800 p-3">
-        <h3 className="mb-2 text-sm font-semibold">{t.mountTo}</h3>
+      <div className="panel p-3">
+        <h3 className="mb-2 text-sm font-semibold text-ink-100">{t.mountTo}</h3>
         <div className="flex flex-wrap gap-3 text-sm">
           {characters.map((c) => (
             <label key={c.id} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
+                className="accent-candle-500"
                 checked={linkedCharacterIds.includes(c.id)}
                 onChange={() => void toggleCharacterLink(c.id)}
               />

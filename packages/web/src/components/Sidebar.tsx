@@ -9,12 +9,9 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const deleteSession = useSessionsStore((s) => s.deleteSession);
 
   return (
-    <aside className="flex h-full flex-col bg-neutral-950">
+    <aside className="flex h-full flex-col bg-tavern-950">
       <div className="p-2">
-        <button
-          className="w-full rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700"
-          onClick={onNavigate}
-        >
+        <button className="btn-secondary w-full" onClick={onNavigate}>
           {t.newSession}
         </button>
       </div>
@@ -22,10 +19,10 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         {sessions.map((s) => (
           <li key={s.id} className="group flex items-center px-2">
             <button
-              className={`flex-1 truncate rounded px-2 py-1.5 text-left text-sm ${
+              className={`flex-1 truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                 s.id === currentId
-                  ? "bg-neutral-800 text-neutral-50"
-                  : "text-neutral-300 hover:bg-neutral-900"
+                  ? "bg-tavern-800 text-candle-300"
+                  : "text-ink-300 hover:bg-tavern-800"
               }`}
               onClick={() => void openSession(s.id).then(onNavigate)}
               title={s.title || s.id}
@@ -33,7 +30,7 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
               {s.title || s.id.slice(0, 8)}
             </button>
             <button
-              className="ml-1 hidden rounded px-1.5 py-1 text-xs text-neutral-500 hover:text-neutral-200 group-hover:block"
+              className="btn-ghost-danger ml-1 hidden group-hover:block"
               aria-label={t.deleteSession}
               onClick={() => void deleteSession(s.id)}
             >
@@ -41,7 +38,9 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
             </button>
           </li>
         ))}
-        {sessions.length === 0 && <li className="p-3 text-xs text-neutral-500">{t.empty}</li>}
+        {sessions.length === 0 && (
+          <li className="p-3 text-center text-xs text-ink-400">{t.empty}</li>
+        )}
       </ul>
     </aside>
   );

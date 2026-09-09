@@ -2,9 +2,10 @@
 import { useEffect, useState } from "react";
 
 import type { PlanData, SystemPlanSlotData } from "../api/plans.js";
+import { statusTone } from "../status-tone.js";
 import { usePlansStore } from "../stores/plans.js";
 import { useSettingsStore } from "../stores/settings.js";
-import { plans as t } from "../ui-text.js";
+import { app as ta, plans as t } from "../ui-text.js";
 
 const SLOT_LABELS: Record<string, string> = t.slotLabels;
 
@@ -89,22 +90,17 @@ export default function PlansPage() {
     }
   }
 
-  const input =
-    "w-full rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1";
-  const label = "mb-1 block text-xs text-neutral-400";
-  const btn = "rounded px-3 py-1.5 text-sm disabled:opacity-40";
-  const iconBtn = "rounded px-1.5 py-0.5 text-xs disabled:opacity-30";
-
   return (
     <div className="flex h-full overflow-hidden">
       {/* 左：计划列表 + 导入 + 全局默认 */}
-      <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-neutral-800 p-3">
+      <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-line p-3">
+        <h2 className="page-title px-1">{ta.pages.plans}</h2>
         <div>
-          <label className={label}>{t.importSt}</label>
+          <label className="label-base">{t.importSt}</label>
           <input
             type="file"
             accept=".json"
-            className="w-full text-xs"
+            className="w-full text-xs text-ink-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-candle-300 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-candle-500 file:px-2 file:py-1 file:text-xs file:font-medium file:text-tavern-950 hover:file:bg-candle-400"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file !== undefined) {
@@ -115,20 +111,20 @@ export default function PlansPage() {
           />
         </div>
         {lastImport !== null && (
-          <div className="rounded border border-neutral-800 p-2 text-xs text-neutral-400">
-            <p className="text-neutral-200">
+          <div className="rounded-lg border border-line p-2 text-xs text-ink-400">
+            <p className="text-ink-100">
               {t.importSummary}
               {lastImport.name}
             </p>
             <p>{t.enabledSlots(lastImport.enabledSlots.join(", ") || "—")}</p>
             <p>{t.disabledSlots(lastImport.disabledSlots.join(", ") || "—")}</p>
             {lastImport.droppedFields.length > 0 && (
-              <p className="text-amber-400">{t.dropped(lastImport.droppedFields.join("、"))}</p>
+              <p className="text-candle-400">{t.dropped(lastImport.droppedFields.join("、"))}</p>
             )}
           </div>
         )}
         <button
-          className={`${btn} w-full bg-neutral-800 hover:bg-neutral-700`}
+          className="btn-secondary w-full"
           disabled={busy}
           onClick={() => {
             void create(t.autoName(new Date().toLocaleString())).then((id) => void open(id));
@@ -140,35 +136,40 @@ export default function PlansPage() {
           {items.map((p) => (
             <li key={p.id}>
               <button
-                className={`w-full truncate rounded px-2 py-1.5 text-left text-sm ${
-                  current?.id === p.id ? "bg-neutral-800" : "hover:bg-neutral-900"
+                className={`w-full truncate rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  current?.id === p.id
+                    ? "bg-tavern-800 text-candle-300"
+                    : "text-ink-300 hover:bg-tavern-800"
                 }`}
                 onClick={() => void open(p.id)}
               >
                 {settings?.defaultPlanId === p.id && (
-                  <span className="mr-1 text-amber-400">{t.defaultBadge}</span>
+                  <span className="mr-1 text-candle-400">{t.defaultBadge}</span>
                 )}
                 {p.name}
               </button>
             </li>
           ))}
+          {items.length === 0 && (
+            <li className="py-3 text-center text-xs text-ink-400">{t.noPlans}</li>
+          )}
         </ul>
       </div>
 
       {/* 右：计划编辑器 */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex flex-1 flex-col overflow-y-auto p-4">
         {current === null ? (
-          <p className="text-sm text-neutral-500">{t.pickPlan}</p>
+          <p className="m-auto text-sm text-ink-400">{t.pickPlan}</p>
         ) : (
-          <div className="mx-auto max-w-2xl space-y-4">
+          <div className="mx-auto w-full max-w-2xl space-y-4">
             <div className="flex items-center gap-2">
               <input
-                className={`${input} flex-1`}
+                className="input-base flex-1"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <button
-                className={`${btn} bg-amber-700 text-white hover:bg-amber-600`}
+                className="btn-secondary"
                 disabled={busy}
                 onClick={() => {
                   void saveSettings({ defaultPlanId: current.id }).then(() =>
@@ -182,11 +183,11 @@ export default function PlansPage() {
 
             <div className="space-y-2">
               {slots.map((slot, index) => (
-                <div key={slot.id} className="rounded border border-neutral-800 p-3">
+                <div key={slot.id} className="panel p-3">
                   <div className="flex items-center gap-2">
                     <span className="flex flex-col">
                       <button
-                        className={iconBtn}
+                        className="btn-ghost"
                         aria-label={t.moveUp}
                         disabled={index === 0 || busy}
                         onClick={() => move(index, -1)}
@@ -194,7 +195,7 @@ export default function PlansPage() {
                         ↑
                       </button>
                       <button
-                        className={iconBtn}
+                        className="btn-ghost"
                         aria-label={t.moveDown}
                         disabled={index === slots.length - 1 || busy}
                         onClick={() => move(index, 1)}
@@ -202,12 +203,13 @@ export default function PlansPage() {
                         ↓
                       </button>
                     </span>
-                    <span className="flex-1 text-sm font-medium">
+                    <span className="flex-1 text-sm font-medium text-ink-100">
                       {SLOT_LABELS[slot.id] ?? slot.id}
                     </span>
                     <label className="flex items-center gap-1 text-xs">
                       <input
                         type="checkbox"
+                        className="accent-candle-500"
                         checked={slot.enabled}
                         onChange={(e) =>
                           setSlots((prev) =>
@@ -224,6 +226,7 @@ export default function PlansPage() {
                     <label className="flex items-center gap-1">
                       <input
                         type="radio"
+                        className="accent-candle-500"
                         name={`src-${slot.id}`}
                         checked={slot.source !== "custom"}
                         onChange={() =>
@@ -237,6 +240,7 @@ export default function PlansPage() {
                     <label className="flex items-center gap-1">
                       <input
                         type="radio"
+                        className="accent-candle-500"
                         name={`src-${slot.id}`}
                         checked={slot.source === "custom"}
                         onChange={() =>
@@ -254,7 +258,7 @@ export default function PlansPage() {
                   </div>
                   {slot.source === "custom" && (
                     <textarea
-                      className={`${input} mt-2 h-20`}
+                      className="input-base mt-2 h-20 w-full"
                       placeholder={t.customPlaceholder}
                       value={slot.content ?? ""}
                       onChange={(e) =>
@@ -270,11 +274,12 @@ export default function PlansPage() {
               ))}
             </div>
 
-            <div className="flex items-center justify-between rounded border border-neutral-800 p-3">
+            <div className="flex items-center justify-between rounded-lg border border-line p-3">
               <span className="text-sm">{t.phi}</span>
               <label className="flex items-center gap-1 text-xs">
                 <input
                   type="checkbox"
+                  className="accent-candle-500"
                   checked={phiEnabled}
                   onChange={(e) => setPhiEnabled(e.target.checked)}
                 />
@@ -283,15 +288,11 @@ export default function PlansPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                className={`${btn} bg-blue-700 text-white hover:bg-blue-600`}
-                disabled={busy}
-                onClick={() => void doSave()}
-              >
+              <button className="btn-primary" disabled={busy} onClick={() => void doSave()}>
                 {t.savePlan}
               </button>
               <button
-                className={`${btn} bg-neutral-800 text-red-300 hover:bg-neutral-700`}
+                className="btn-secondary text-ember-400 hover:text-ember-500"
                 disabled={busy}
                 onClick={() => {
                   void remove(current.id);
@@ -299,7 +300,11 @@ export default function PlansPage() {
               >
                 {t.deletePlan}
               </button>
-              <span className="text-xs text-neutral-400">{status}</span>
+              <span
+                className={`text-xs ${statusTone(status, [t.importFailed, t.saveFailed], [t.importingStatus])}`}
+              >
+                {status}
+              </span>
             </div>
           </div>
         )}
