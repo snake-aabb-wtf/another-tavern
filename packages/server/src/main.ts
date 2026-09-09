@@ -19,7 +19,9 @@ import { openDatabase } from "./db/client.js";
 const dbPath = resolve(process.env.DB_PATH ?? "data/app.db");
 const migrationsDir = resolve(process.env.MIGRATIONS_DIR ?? "drizzle");
 const port = Number(process.env.PORT ?? 3001);
-const staticDir = process.env.STATIC_DIR;
+// 静态托管：显式 STATIC_DIR 优先；否则探测分发布局（web-dist 存在即启用，双击/一条命令零配置）
+const staticDir =
+  process.env.STATIC_DIR ?? (existsSync(resolve("web-dist", "index.html")) ? "web-dist" : undefined);
 
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDatabase(dbPath, migrationsDir);
