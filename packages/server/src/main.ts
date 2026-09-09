@@ -21,7 +21,8 @@ const migrationsDir = resolve(process.env.MIGRATIONS_DIR ?? "drizzle");
 const port = Number(process.env.PORT ?? 3001);
 // 静态托管：显式 STATIC_DIR 优先；否则探测分发布局（web-dist 存在即启用，双击/一条命令零配置）
 const staticDir =
-  process.env.STATIC_DIR ?? (existsSync(resolve("web-dist", "index.html")) ? "web-dist" : undefined);
+  process.env.STATIC_DIR ??
+  (existsSync(resolve("web-dist", "index.html")) ? "web-dist" : undefined);
 
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDatabase(dbPath, migrationsDir);
@@ -79,7 +80,8 @@ serve({ fetch: fetchHandler, port }, (info) => {
     console.log(`[another-tavern] web ui: http://localhost:${info.port} (static: ${staticDir})`);
     if (process.env.OPEN_BROWSER === "1") {
       const url = `http://localhost:${info.port}`;
-      const cmd = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
+      const cmd =
+        process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
       const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
       try {
         spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();

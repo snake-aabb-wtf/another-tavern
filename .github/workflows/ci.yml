@@ -76,7 +76,7 @@ jobs:
         run: docker build -t another-tavern:ci .
       - uses: softprops/action-gh-release@v2
         with:
-          files: another-tavern-*.zip
+          files: release-pkg/another-tavern-*.zip
           body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
