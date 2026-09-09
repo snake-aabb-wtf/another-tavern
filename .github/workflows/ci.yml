@@ -62,6 +62,8 @@ jobs:
           curl -s -i http://localhost:3001/api/health || echo "health request failed"
           echo "--- root body ---"
           curl -s -i http://localhost:3001/ || echo "root request failed"
+          echo "--- server log after requests ---"
+          cat server.log
           echo "--- assert ---"
           curl -fsS http://localhost:3001/api/health > /dev/null
           curl -fsS -o /dev/null -w "web index: %{http_code}\n" http://localhost:3001/
