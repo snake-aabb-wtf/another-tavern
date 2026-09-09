@@ -42,23 +42,23 @@ jobs:
       - run: pnpm build
       - name: Assemble portable package
         run: |
-          pnpm --filter @another-tavern/server deploy --prod /pkg/app
-          mkdir -p /pkg/web-dist
-          cp -r packages/web/dist/* /pkg/web-dist/
-          cp -r packages/server/drizzle /pkg/app/drizzle
-          printf '@echo off\r\ncd /d %%~dp0app\r\nset STATIC_DIR=web-dist\r\nset OPEN_BROWSER=1\r\nnode dist/main.js\r\n' > /pkg/start.cmd
-          printf '#!/bin/sh\ncd "$(dirname "$0")/app"\nexport STATIC_DIR=web-dist\nexport OPEN_BROWSER=1\nnode dist/main.js\n' > /pkg/start.sh
-          chmod +x /pkg/start.sh
+          pnpm --filter @another-tavern/server deploy --prod ./release-pkg/app
+          mkdir -p ./release-pkg/web-dist
+          cp -r packages/web/dist/* ./release-pkg/web-dist/
+          cp -r packages/server/drizzle ./release-pkg/app/drizzle
+          printf '@echo off\r\ncd /d %%~dp0app\r\nset STATIC_DIR=web-dist\r\nset OPEN_BROWSER=1\r\nnode dist/main.js\r\n' > ./release-pkg/start.cmd
+          printf '#!/bin/sh\ncd "$(dirname "$0")/app"\nexport STATIC_DIR=web-dist\nexport OPEN_BROWSER=1\nnode dist/main.js\n' > ./release-pkg/start.sh
+          chmod +x ./release-pkg/start.sh
       - name: Smoke test the package (clean-environment verification)
         run: |
-          cd /pkg/app
+          cd ./release-pkg/app
           node dist/main.js &
           sleep 2
           curl -fsS http://localhost:3001/api/health
           curl -fsS -o /dev/null -w "web index: %{http_code}\n" http://localhost:3001/
       - name: Package zip
         run: |
-          cd /pkg
+          cd ./release-pkg
           zip -qr "another-tavern-${{ github.ref_name }}-node22.zip" .
       - name: Verify Dockerfile builds
         run: docker build -t another-tavern:ci .
