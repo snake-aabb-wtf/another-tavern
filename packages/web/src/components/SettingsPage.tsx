@@ -5,6 +5,39 @@ import { statusTone } from "../status-tone.js";
 import { useSettingsStore } from "../stores/settings.js";
 import { settings as t } from "../ui-text.js";
 
+/** 采样数值键的回显：仅接受有限 number（NaN / 其它类型 → 回显空串）。 */
+function samplingNumberDisplay(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+/** 采样字符串键（stop）的回显：仅接受 string，其余回显空串。 */
+function samplingStringDisplay(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * 表单键 → 采样底对象（docs/settings-spec §4.3 合并语义）：
+ * 空串 = 删除该键（不发送）；非空 = 转换后写入；
+ * 数字键转换结果非有限（NaN/∞）时按空串处理，避免被 JSON 序列化成 null。
+ */
+function applySamplingInput(
+  target: Record<string, unknown>,
+  key: string,
+  raw: string,
+  convert: (value: string) => unknown,
+): void {
+  if (raw === "") {
+    delete target[key];
+    return;
+  }
+  const value = convert(raw);
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    delete target[key];
+    return;
+  }
+  target[key] = value;
+}
+
 export default function SettingsPage() {
   const settings = useSettingsStore((s) => s.settings);
   const error = useSettingsStore((s) => s.error);
@@ -17,6 +50,10 @@ export default function SettingsPage() {
   const [temperature, setTemperature] = useState("");
   const [topP, setTopP] = useState("");
   const [maxTokens, setMaxTokens] = useState("");
+  const [frequencyPenalty, setFrequencyPenalty] = useState("");
+  const [presencePenalty, setPresencePenalty] = useState("");
+  const [stop, setStop] = useState("");
+  const [seed, setSeed] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -29,25 +66,29 @@ export default function SettingsPage() {
       setBaseUrl(settings.baseUrl);
       setModel(settings.model);
       const s = settings.sampling;
-      setTemperature(s.temperature !== undefined ? String(s.temperature) : "");
-      setTopP(s.top_p !== undefined ? String(s.top_p) : "");
-      setMaxTokens(s.max_tokens !== undefined ? String(s.max_tokens) : "");
+      setTemperature(samplingNumberDisplay(s.temperature));
+      setTopP(samplingNumberDisplay(s.top_p));
+      setMaxTokens(samplingNumberDisplay(s.max_tokens));
+      setFrequencyPenalty(samplingNumberDisplay(s.frequency_penalty));
+      setPresencePenalty(samplingNumberDisplay(s.presence_penalty));
+      setStop(samplingStringDisplay(s.stop));
+      setSeed(samplingNumberDisplay(s.seed));
     }
   }, [settings]);
 
   async function doSave(): Promise<void> {
     setBusy(true);
     setStatus("");
-    const sampling: Record<string, unknown> = {};
-    if (temperature !== "") {
-      sampling.temperature = Number(temperature);
-    }
-    if (topP !== "") {
-      sampling.top_p = Number(topP);
-    }
-    if (maxTokens !== "") {
-      sampling.max_tokens = Number(maxTokens);
-    }
+    // 合并语义（docs/settings-spec §4.3）：以已加载的 sampling 为底对象应用 7 个表单键，
+    // 空串 = 删除该键（不发送）；其余未知键原样保留，手工/API 存入的扩展键不被 UI 抹掉。
+    const sampling: Record<string, unknown> = { ...(settings?.sampling ?? {}) };
+    applySamplingInput(sampling, "temperature", temperature, Number);
+    applySamplingInput(sampling, "top_p", topP, Number);
+    applySamplingInput(sampling, "max_tokens", maxTokens, Number);
+    applySamplingInput(sampling, "frequency_penalty", frequencyPenalty, Number);
+    applySamplingInput(sampling, "presence_penalty", presencePenalty, Number);
+    applySamplingInput(sampling, "stop", stop, (raw) => raw);
+    applySamplingInput(sampling, "seed", seed, Number);
     try {
       await save({ baseUrl, model, apiKey, sampling });
       setApiKey("");
@@ -127,6 +168,48 @@ export default function SettingsPage() {
               min="1"
               value={maxTokens}
               onChange={(e) => setMaxTokens(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label-base">{t.frequencyPenalty}</label>
+            <input
+              className="input-base w-full"
+              type="number"
+              step="0.1"
+              min="-2"
+              max="2"
+              value={frequencyPenalty}
+              onChange={(e) => setFrequencyPenalty(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label-base">{t.presencePenalty}</label>
+            <input
+              className="input-base w-full"
+              type="number"
+              step="0.1"
+              min="-2"
+              max="2"
+              value={presencePenalty}
+              onChange={(e) => setPresencePenalty(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label-base">{t.stop}</label>
+            <input
+              className="input-base w-full"
+              value={stop}
+              onChange={(e) => setStop(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label-base">{t.seed}</label>
+            <input
+              className="input-base w-full"
+              type="number"
+              step="1"
+              value={seed}
+              onChange={(e) => setSeed(e.target.value)}
             />
           </div>
         </fieldset>

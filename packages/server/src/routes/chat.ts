@@ -35,6 +35,7 @@ const SAMPLING_WHITELIST = [
   "frequency_penalty",
   "presence_penalty",
   "stop",
+  "seed",
 ] as const;
 
 function allowedSampling(sampling: Record<string, unknown>): Record<string, unknown> {

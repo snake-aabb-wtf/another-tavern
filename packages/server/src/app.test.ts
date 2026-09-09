@@ -365,6 +365,68 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       expect(upstreamBody.messages.at(-1)?.role).toBe("user");
     });
 
+    it("sampling 白名单内的 seed → 上游请求体带 seed", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["嘿"], record);
+      const { app, sessionId } = await setup();
+      await app.request("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: "http://fake.local/v1",
+          apiKey: "sk-test",
+          model: "test-model",
+          sampling: { temperature: 0.7, seed: 42 },
+        }),
+      });
+
+      const res = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "hi" }),
+      });
+      expect(res.status).toBe(200);
+      await readSse(res); // 排空 SSE，确保上游请求已发出
+
+      const upstreamBody = JSON.parse(String(record.init?.body)) as {
+        seed?: unknown;
+        temperature?: unknown;
+      };
+      expect(upstreamBody.seed).toBe(42);
+      expect(upstreamBody.temperature).toBe(0.7);
+    });
+
+    it("sampling 白名单外的 top_k → 上游请求体不含 top_k", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["嘿"], record);
+      const { app, sessionId } = await setup();
+      await app.request("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: "http://fake.local/v1",
+          apiKey: "sk-test",
+          model: "test-model",
+          sampling: { temperature: 0.5, top_k: 40 },
+        }),
+      });
+
+      const res = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "hi" }),
+      });
+      expect(res.status).toBe(200);
+      await readSse(res); // 排空 SSE，确保上游请求已发出
+
+      const upstreamBody = JSON.parse(String(record.init?.body)) as {
+        top_k?: unknown;
+        temperature?: unknown;
+      };
+      expect(upstreamBody.top_k).toBeUndefined();
+      expect(upstreamBody.temperature).toBe(0.5);
+    });
+
     it("未配置 settings → 400 settings_missing", async () => {
       const app = createApp(deps);
       const form = new FormData();

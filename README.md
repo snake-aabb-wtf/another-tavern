@@ -55,6 +55,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 | [docs/cards-spec.md](./docs/cards-spec.md)           | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略       | 评审中 |
 | [docs/prompt-assembly.md](./docs/prompt-assembly.md) | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例 | 评审中 |
 | [docs/world-info-spec.md](./docs/world-info-spec.md) | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口         | 评审中 |
+| [docs/settings-spec.md](./docs/settings-spec.md)     | 设置与采样参数规范：资源模型、采样 7 键契约、发送白名单、API 与 UI  | 已实现 |
 
 ## 架构分层
 
@@ -120,11 +121,11 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 1. **启动**：仓库根执行 `pnpm dev`——server 跑在 `http://localhost:3001`，web 跑在 `http://localhost:5173`（`/api` 自动代理到 3001）。
 2. **导入角色卡**：打开 `http://localhost:5173` → 顶部「角色卡」页 → 把 V2 PNG/JSON 卡**拖入虚线区**（或点"或选择文件导入"）→ 状态行显示"已导入：<卡名>"。没有现成卡时，可把 `packages/server/src/app.test.ts` 里的 `SAMPLE_CARD` JSON 存成 `.json` 文件使用。
 3. **新建会话**：在卡列表点「开始聊天」→ 自动跳到聊天页，卡片的 `first_mes` 已作为开场消息显示；左侧栏出现该会话。
-4. **配置上游**：「设置」页填 baseUrl / API key / 模型名 → 保存（key 不回显明文；留空即保留）。同页可设 temperature / top_p / max_tokens。
+4. **配置上游**：「设置」页填 baseUrl / API key / 模型名 → 保存（key 不回显明文；留空即保留）。同页可设 7 个采样参数：temperature / top_p / max_tokens / frequency_penalty / presence_penalty / stop / seed（留空 = 不发送该参数；契约见 [docs/settings-spec.md](./docs/settings-spec.md)）。
 5. **流式对话**：聊天页输入消息 → Enter 发送 → 助手气泡**逐 token 出字**。
 6. **编辑 / swipe / 重新生成**：点消息下「编辑」改内容并保存；assistant 气泡下 `← 1/2 →` 切换候选（点「→ 重新生成」生成新候选）；「重新生成」按钮可重生成最后一条回复。
 7. **刷新保持**：刷新页面 → 会话列表仍在、上次打开的会话自动恢复、历史消息完整。
-8. **采样生效**：设置页改 `temperature`（如 0.1）→ 保存 → 继续对话，观察回复变化；或用 `curl` 对比上游收到的请求体。
+8. **采样生效**：设置页改 `temperature`（如 0.1）等采样参数（7 键全集与发送白名单见 [docs/settings-spec.md](./docs/settings-spec.md)）→ 保存 → 继续对话，观察回复变化；或用 `curl` 对比上游收到的请求体（白名单外的 sampling 键不会发送）。
 
 ## 安全说明
 
