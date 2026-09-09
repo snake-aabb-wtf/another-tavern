@@ -58,6 +58,15 @@
 - **UI 文案**：界面文案一律使用 `packages/web/src/ui-text.ts` 中的常量，不得在组件内硬编码字符串（为 i18n 铺路；新增文案先加常量再引用）。
 - **秘钥与数据**：API key、聊天记录只存在于本地 SQLite（`packages/server/data/`），已被 .gitignore 排除；任何真实凭据严禁进入代码、测试与提交历史。
 
+## 6c. UI 视觉基调（M7 后确立：「烛下酒馆」）
+
+- **风格锚点**：深夜自托管小酒馆——暖褐黑多层底色、烛焰琥珀（candle）为唯一强调色、黄铜（brass）辅色、羊皮纸（parchment）角色消息卡为签名元素；衬线展示字体（`font-display`）只用于招牌与页标题。禁止紫渐变、玻璃拟态、默认蓝等模板化（AI slop）样式，禁止纯装饰性的新动效。
+- **颜色唯一来源**：`packages/web/src/index.css` 的 `@theme` 令牌（tavern / candle / brass / parchment / ink / ember / moss）。组件内禁止出现 Tailwind 默认色阶字面量（`neutral-*` / `blue-*` / `amber-*` / `red-*` 等）与裸 hex；需要新颜色先加令牌再引用。
+- **复用交互原语**：按钮、输入框、面板、页标题一律使用 `index.css` `@layer components` 中的共享类（`btn-primary` / `btn-secondary` / `btn-ghost` / `btn-ghost-danger` / `input-base` / `label-base` / `panel` / `panel-pop` / `page-title` 等），不得在组件内手写同类样式。
+- **状态纪律**：可交互元素必须有 hover、`focus-visible`（琥珀外圈）与 disabled（40% 透明）；成功 = moss、失败 = ember、进行中 = 琥珀；动效仅限既有 keyframes（`msg-enter` / `breathe`），且必须尊重 `prefers-reduced-motion`。
+- **单一暗色主题**是既定方向，不做主题切换；签名元素（羊皮纸消息卡）是全场唯一记忆点，其余保持安静。
+- **视觉交付验收**：改动 UI 时除 §8 门禁外，须同步刷新 `docs/screenshots/`，保证 README 图文一致。
+
 ## 7. 代码规范
 
 - TypeScript strict（继承根 `tsconfig.base.json`）；不使用 `any`；`@ts-expect-error` 必须附注释说明原因。
