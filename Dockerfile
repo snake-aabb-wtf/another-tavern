@@ -3,6 +3,7 @@
 
 FROM node:22-alpine AS build
 WORKDIR /repo
+ENV CI=true
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile \

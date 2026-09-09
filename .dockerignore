@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+dist
+**/dist
+packages/server/data
+**/*.db
+**/*.sqlite
+.git
+.github
+docs
+scripts
+screenshots
+*.log
+RELEASE_NOTES.md
