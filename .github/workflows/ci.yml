@@ -52,8 +52,9 @@ jobs:
       - name: Smoke test the package (clean-environment verification)
         run: |
           cd ./release-pkg/app
-          node dist/main.js &
-          sleep 2
+          node dist/main.js > server.log 2>&1 &
+          sleep 3
+          cat server.log
           curl -fsS http://localhost:3001/api/health
           curl -fsS -o /dev/null -w "web index: %{http_code}\n" http://localhost:3001/
       - name: Package zip
