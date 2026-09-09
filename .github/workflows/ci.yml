@@ -55,7 +55,12 @@ jobs:
           node dist/main.js > server.log 2>&1 &
           sleep 3
           cat server.log
-          curl -fsS http://localhost:3001/api/health
+          echo "--- health response ---"
+          curl -s -i http://localhost:3001/api/health || echo "health request failed"
+          echo "--- root status ---"
+          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/ || true
+          echo "--- assert ---"
+          curl -fsS http://localhost:3001/api/health > /dev/null
           curl -fsS -o /dev/null -w "web index: %{http_code}\n" http://localhost:3001/
       - name: Package zip
         run: |
