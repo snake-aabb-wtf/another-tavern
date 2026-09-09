@@ -41,11 +41,13 @@ if (staticDir !== undefined && staticDir !== "") {
   };
 
   app.get("*", (c) => {
+    console.log("[debug] wildcard hit:", c.req.path, "root:", root);
     if (c.req.path.startsWith("/api")) {
       return c.json({ error: { code: "not_found", message: "未知 API 路径。" } }, 404);
     }
     const relative = c.req.path === "/" ? "/index.html" : c.req.path;
     const file = join(root, relative);
+    console.log("[debug] file:", file, "exists:", existsSync(file));
     if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory()) {
       // SPA fallback：未知路径回 index.html
       const index = join(root, "index.html");
