@@ -43,8 +43,7 @@ jobs:
       - name: Assemble portable package
         run: |
           pnpm --filter @another-tavern/server deploy --legacy --prod ./release-pkg/app
-          mkdir -p ./release-pkg/web-dist
-          cp -r packages/web/dist/* ./release-pkg/web-dist/
+          cp -r packages/web/dist ./release-pkg/app/web-dist
           cp -r packages/server/drizzle ./release-pkg/app/drizzle
           printf '@echo off\r\ncd /d %%~dp0app\r\nset STATIC_DIR=web-dist\r\nset OPEN_BROWSER=1\r\nnode dist/main.js\r\n' > ./release-pkg/start.cmd
           printf '#!/bin/sh\ncd "$(dirname "$0")/app"\nexport STATIC_DIR=web-dist\nexport OPEN_BROWSER=1\nnode dist/main.js\n' > ./release-pkg/start.sh
