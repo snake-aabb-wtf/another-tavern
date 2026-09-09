@@ -1,5 +1,6 @@
 /** 左侧会话列表（桌面常驻，窄屏为抽屉内容）。 */
 import { useSessionsStore } from "../stores/sessions.js";
+import { sidebar as t } from "../ui-text.js";
 
 export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const sessions = useSessionsStore((s) => s.sessions);
@@ -14,7 +15,7 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           className="w-full rounded bg-neutral-800 px-3 py-1.5 text-sm hover:bg-neutral-700"
           onClick={onNavigate}
         >
-          ＋ 新建会话（选角色卡）
+          {t.newSession}
         </button>
       </div>
       <ul className="flex-1 overflow-y-auto pb-2">
@@ -33,14 +34,14 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
             </button>
             <button
               className="ml-1 hidden rounded px-1.5 py-1 text-xs text-neutral-500 hover:text-neutral-200 group-hover:block"
-              aria-label="删除会话"
+              aria-label={t.deleteSession}
               onClick={() => void deleteSession(s.id)}
             >
               ✕
             </button>
           </li>
         ))}
-        {sessions.length === 0 && <li className="p-3 text-xs text-neutral-500">还没有会话</li>}
+        {sessions.length === 0 && <li className="p-3 text-xs text-neutral-500">{t.empty}</li>}
       </ul>
     </aside>
   );

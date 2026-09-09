@@ -25,5 +25,6 @@
   },
   "devDependencies": {
     "png-chunks-encode": "^1.0.0"
-  }
+  },
+  "license": "MIT"
 }

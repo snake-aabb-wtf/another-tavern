@@ -1,7 +1,42 @@
 # Another Tavern
 
+<p align="center">
+  <img src="docs/screenshots/chat.png" width="720" alt="Another Tavern 聊天界面" />
+</p>
+
 开源、自托管优先的 AI 角色扮演框架，定位为 [SillyTavern](https://github.com/SillyTavern/SillyTavern)（下称 ST）的平替。
 核心价值在**提示词组装引擎**：把角色卡、用户人设、世界书（lorebook）、聊天历史在 token 预算内按规则组装成最终请求——UI 只是皮，引擎是灵魂。
+
+MIT 许可。与 ST 的兼容仅限文件格式层面（角色卡 V2/V1 JSON+PNG、预设 JSON、世界书 JSON）——本仓库不包含任何 ST（AGPL-3.0）源码，详见 [LICENSE](./LICENSE)。
+
+## 快速开始
+
+### 便携包（推荐，需 Node ≥ 22.5）
+
+从 [Releases](../../releases) 下载 `another-tavern-v*-node22.zip`，解压后：
+
+- Windows：双击 `start.cmd`（自动起服务并打开浏览器）
+- Linux / macOS：`./start.sh`
+
+数据库与全部数据写在解压目录 `app/data/` 下，随目录移动。
+
+### Docker
+
+```bash
+docker build -t another-tavern .
+docker run -p 3001:3001 -v another-tavern-data:/app/data another-tavern
+```
+
+浏览器打开 `http://localhost:3001`。数据卷 `/app/data` 保存 SQLite 数据库（聊天记录与设置）。
+
+### 源码开发
+
+```bash
+pnpm install
+pnpm dev        # server:3001 + web:5173（/api 自动代理）
+```
+
+要求 Node ≥ 22.5（内置 `node:sqlite` 驱动）。
 
 ## 当前状态
 
@@ -90,6 +125,22 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 6. **编辑 / swipe / 重新生成**：点消息下「编辑」改内容并保存；assistant 气泡下 `← 1/2 →` 切换候选（点「→ 重新生成」生成新候选）；「重新生成」按钮可重生成最后一条回复。
 7. **刷新保持**：刷新页面 → 会话列表仍在、上次打开的会话自动恢复、历史消息完整。
 8. **采样生效**：设置页改 `temperature`（如 0.1）→ 保存 → 继续对话，观察回复变化；或用 `curl` 对比上游收到的请求体。
+
+## 安全说明
+
+- **API key 与聊天记录以明文存储在本地 SQLite**（`data/app.db`，Docker 中为 `/app/data`）——这是单机自托管工具的刻意取舍：数据不出本机。
+- 该文件包含你的上游 API key，**不要**把它提交到任何仓库、发给别人或放进截图。
+- 服务默认监听 `0.0.0.0:3001`（本机所有网卡）；请勿在不受信任的网络中直接暴露，或用防火墙/反向代理 + 认证限制访问。
+- 上传的角色卡/世界书文件有大小上限（20MB / 5MB）并在解析前做格式校验。
+
+## 与 SillyTavern 的功能差异
+
+本仓库与 ST 的兼容仅限**文件格式**（V2 角色卡、预设 JSON、世界书 JSON 的导入）；不包含任何 ST 源码。当前差异：
+
+- 不支持：群聊、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率、Prompt Manager 拖拽（用上下移按钮替代）
+- 世界书插入位置仅实现 beforeChar / afterChar / atDepth（其余可选但不注入，字段保留）
+- 组装段序由「组装计划」编排（含上移/下移与自定义槽文本），非 ST 的自由拖拽列表
+- 完整对照见 `docs/world-info-spec.md` §9 与 `docs/cards-spec.md` §1（不支持格式清单）
 
 ## 面向 Agent 的开发规则
 

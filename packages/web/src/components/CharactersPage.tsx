@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getCharacter } from "../api/characters.js";
 import { useCharactersStore } from "../stores/characters.js";
 import { useSessionsStore } from "../stores/sessions.js";
+import { characters as t } from "../ui-text.js";
 
 interface EditForm {
   name: string;
@@ -46,12 +47,12 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
 
   async function doImport(file: File): Promise<void> {
     setBusy(true);
-    setStatus(`导入中：${file.name}…`);
+    setStatus(`${t.importing}${file.name}…`);
     try {
       const created = await importCard(file);
-      setStatus(`已导入：${created.name}`);
+      setStatus(t.imported(created.name));
     } catch (e) {
-      setStatus(`导入失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.importFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -64,10 +65,10 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
     setBusy(true);
     try {
       await update(editingId, form);
-      setStatus("已保存。");
+      setStatus(t.saved);
       setEditingId(null);
     } catch (e) {
-      setStatus(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.saveFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -79,7 +80,7 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
       await createSession(id, name);
       onGoChat();
     } catch (e) {
-      setStatus(`建会话失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.createSessionFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -109,9 +110,9 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
           }
         }}
       >
-        拖拽 PNG / JSON 角色卡到此处
+        {t.dropHint}
         <label className={`${btn} mt-2 cursor-pointer bg-neutral-800 hover:bg-neutral-700`}>
-          或选择文件导入
+          {t.pickFile}
           <input
             type="file"
             accept=".png,.json"
@@ -127,7 +128,7 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
         </label>
       </div>
       <p className="mb-3 min-h-5 text-xs text-neutral-400">
-        {loading && "加载中…"}
+        {loading && t.loading}
         {error !== null && <span className="text-red-400">{error}</span>}
         {error === null && status}
       </p>
@@ -141,31 +142,31 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
                   className={input}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="名字"
+                  placeholder={t.form.name}
                 />
                 <textarea
                   className={input}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="描述"
+                  placeholder={t.form.description}
                 />
                 <textarea
                   className={input}
                   value={form.personality}
                   onChange={(e) => setForm({ ...form, personality: e.target.value })}
-                  placeholder="性格"
+                  placeholder={t.form.personality}
                 />
                 <textarea
                   className={input}
                   value={form.scenario}
                   onChange={(e) => setForm({ ...form, scenario: e.target.value })}
-                  placeholder="场景"
+                  placeholder={t.form.scenario}
                 />
                 <textarea
                   className={input}
                   value={form.firstMes}
                   onChange={(e) => setForm({ ...form, firstMes: e.target.value })}
-                  placeholder="开场白"
+                  placeholder={t.form.firstMes}
                 />
                 <div className="flex gap-2">
                   <button
@@ -173,13 +174,13 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
                     disabled={busy}
                     onClick={() => void saveEdit()}
                   >
-                    保存
+                    {t.save}
                   </button>
                   <button
                     className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
                     onClick={() => setEditingId(null)}
                   >
-                    取消
+                    {t.cancel}
                   </button>
                 </div>
               </div>
@@ -194,23 +195,21 @@ export default function CharactersPage({ onGoChat }: { onGoChat: () => void }) {
                     className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
                     onClick={() => setEditingId(item.id)}
                   >
-                    编辑
+                    {t.edit}
                   </button>
                   <button
                     className={`${btn} bg-blue-700 text-white hover:bg-blue-600`}
                     disabled={busy}
                     onClick={() => void startChat(item.id, item.name)}
                   >
-                    开始聊天
+                    {t.startChat}
                   </button>
                 </div>
               </div>
             )}
           </li>
         ))}
-        {items.length === 0 && !loading && (
-          <li className="text-sm text-neutral-500">还没有角色卡，先导入一张。</li>
-        )}
+        {items.length === 0 && !loading && <li className="text-sm text-neutral-500">{t.empty}</li>}
       </ul>
     </div>
   );

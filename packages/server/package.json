@@ -20,5 +20,10 @@
     "drizzle-kit": "^0.31.10",
     "png-chunk-text": "^1.0.0",
     "png-chunks-encode": "^1.0.0"
-  }
+  },
+  "license": "MIT",
+  "files": [
+    "dist",
+    "drizzle"
+  ]
 }

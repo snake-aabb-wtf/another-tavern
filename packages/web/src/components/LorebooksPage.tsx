@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { LorebookEntryData } from "../api/lorebooks.js";
 import { useCharactersStore } from "../stores/characters.js";
 import { useLorebooksStore } from "../stores/lorebooks.js";
+import { lorebooks as t } from "../ui-text.js";
 
 const input =
   "w-full rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1";
@@ -38,12 +39,12 @@ export default function LorebooksPage() {
 
   async function doImport(file: File, isGlobal: boolean): Promise<void> {
     setBusy(true);
-    setStatus("导入中…");
+    setStatus(t.importingStatus);
     try {
       await importBook(file, isGlobal);
-      setStatus("导入完成 ✓（摘要见下方）");
+      setStatus(t.importDone);
     } catch (e) {
-      setStatus(`导入失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.importFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -56,10 +57,10 @@ export default function LorebooksPage() {
     setBusy(true);
     try {
       await saveEntry(editingEntry.id, editingEntry);
-      setStatus("条目已保存 ✓");
+      setStatus(t.entrySaved);
       setEditingEntry(null);
     } catch (e) {
-      setStatus(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.saveFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -71,7 +72,8 @@ export default function LorebooksPage() {
       <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-neutral-800 p-3">
         <div className="rounded border border-dashed border-neutral-700 p-2 text-center text-xs text-neutral-500">
           <label className="block cursor-pointer py-1 hover:text-neutral-300">
-            导入 ST 世界书 JSON{busy ? "（处理中…）" : ""}
+            {t.importSt}
+            {busy ? t.importing : ""}
             <input
               type="file"
               accept=".json"
@@ -86,7 +88,7 @@ export default function LorebooksPage() {
             />
           </label>
           <label className="block cursor-pointer border-t border-neutral-800 py-1 hover:text-neutral-300">
-            导入并设为全局
+            {t.importStGlobal}
             <input
               type="file"
               accept=".json"
@@ -104,12 +106,13 @@ export default function LorebooksPage() {
         {status !== "" && <p className="text-xs text-neutral-400">{status}</p>}
         {lastImport !== null && (
           <div className="rounded border border-neutral-800 p-2 text-xs text-neutral-400">
-            <p className="text-neutral-200">导入摘要：{lastImport.name}</p>
-            <p>条目数：{lastImport.entryCount}</p>
+            <p className="text-neutral-200">
+              {t.importSummary}
+              {lastImport.name}
+            </p>
+            <p>{t.entryCount(lastImport.entryCount)}</p>
             {lastImport.warnings.length > 0 && (
-              <p className="text-amber-400">
-                警告 {lastImport.warnings.length} 条（未知字段已保留）
-              </p>
+              <p className="text-amber-400">{t.warningsKept(lastImport.warnings.length)}</p>
             )}
           </div>
         )}
@@ -117,10 +120,10 @@ export default function LorebooksPage() {
           className={`${btn} w-full bg-neutral-800 hover:bg-neutral-700`}
           disabled={busy}
           onClick={() => {
-            void create(`世界书 ${new Date().toLocaleString()}`).then((id) => void open(id));
+            void create(t.autoName(new Date().toLocaleString())).then((id) => void open(id));
           }}
         >
-          ＋ 新建世界书
+          {t.newBook}
         </button>
         <ul className="space-y-1">
           {items.map((b) => (
@@ -131,25 +134,25 @@ export default function LorebooksPage() {
                 }`}
                 onClick={() => void open(b.id)}
               >
-                {b.isGlobal && <span className="mr-1 text-amber-400">[全局]</span>}
+                {b.isGlobal && <span className="mr-1 text-amber-400">{t.globalBadge}</span>}
                 {b.name}
               </button>
             </li>
           ))}
-          {items.length === 0 && <li className="text-xs text-neutral-500">还没有世界书</li>}
+          {items.length === 0 && <li className="text-xs text-neutral-500">{t.noBooks}</li>}
         </ul>
       </div>
 
       {/* 右：选中书详情 */}
       <div className="flex-1 overflow-y-auto p-4">
         {current === null ? (
-          <p className="text-sm text-neutral-500">从左侧选择或导入一本世界书。</p>
+          <p className="text-sm text-neutral-500">{t.pickBook}</p>
         ) : (
           <div className="mx-auto max-w-2xl space-y-4">
             <BookEditor />
             <CharacterLinks />
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">条目（{current.entries.length}）</h3>
+              <h3 className="text-sm font-semibold">{t.entries(current.entries.length)}</h3>
               <div className="flex gap-2">
                 <button
                   className="text-xs text-red-400 hover:text-red-300"
@@ -157,7 +160,7 @@ export default function LorebooksPage() {
                     void remove(current.id);
                   }}
                 >
-                  删除本书
+                  {t.deleteBook}
                 </button>
                 <button
                   className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
@@ -165,7 +168,7 @@ export default function LorebooksPage() {
                     setEditingEntry(emptyEntry());
                   }}
                 >
-                  ＋ 新建条目
+                  {t.newEntry}
                 </button>
               </div>
             </div>
@@ -178,25 +181,27 @@ export default function LorebooksPage() {
                   <span className={entry.enabled ? "" : "text-neutral-600 line-through"}>
                     {entry.comment || entry.keys.join(", ") || entry.id}
                   </span>
-                  {entry.constant && <span className="text-xs text-amber-400">常驻</span>}
+                  {entry.constant && (
+                    <span className="text-xs text-amber-400">{t.constantBadge}</span>
+                  )}
                   <span className="ml-auto flex gap-2">
                     <button
                       className="text-xs hover:text-neutral-200"
                       onClick={() => setEditingEntry(entry)}
                     >
-                      编辑
+                      {t.edit}
                     </button>
                     <button
                       className="text-xs text-neutral-500 hover:text-red-400"
                       onClick={() => void removeEntry(entry.id)}
                     >
-                      删除
+                      {t.deleteEntry}
                     </button>
                   </span>
                 </li>
               ))}
               {current.entries.length === 0 && (
-                <li className="text-xs text-neutral-500">暂无条目</li>
+                <li className="text-xs text-neutral-500">{t.noEntries}</li>
               )}
             </ul>
           </div>
@@ -213,9 +218,9 @@ export default function LorebooksPage() {
             className="max-h-[85vh] w-full max-w-lg space-y-3 overflow-y-auto rounded border border-neutral-700 bg-neutral-950 p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold">条目编辑</h3>
+            <h3 className="text-sm font-semibold">{t.entryEditor}</h3>
             <div>
-              <label className={label}>主关键词（逗号分隔）</label>
+              <label className={label}>{t.keys}</label>
               <input
                 className={input}
                 value={editingEntry.keys.join(", ")}
@@ -225,7 +230,7 @@ export default function LorebooksPage() {
               />
             </div>
             <div>
-              <label className={label}>副关键词（逗号分隔；selective 开启时生效）</label>
+              <label className={label}>{t.secondaryKeys}</label>
               <input
                 className={input}
                 value={editingEntry.secondaryKeys.join(", ")}
@@ -235,7 +240,7 @@ export default function LorebooksPage() {
               />
             </div>
             <div>
-              <label className={label}>内容</label>
+              <label className={label}>{t.content}</label>
               <textarea
                 className={`${input} h-24`}
                 value={editingEntry.content}
@@ -249,7 +254,7 @@ export default function LorebooksPage() {
                   checked={editingEntry.constant}
                   onChange={(e) => setEditingEntry({ ...editingEntry, constant: e.target.checked })}
                 />
-                常驻（无视关键词）
+                {t.constant}
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -257,7 +262,7 @@ export default function LorebooksPage() {
                   checked={editingEntry.enabled}
                   onChange={(e) => setEditingEntry({ ...editingEntry, enabled: e.target.checked })}
                 />
-                启用
+                {t.enabled}
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -267,7 +272,7 @@ export default function LorebooksPage() {
                     setEditingEntry({ ...editingEntry, selective: e.target.checked })
                   }
                 />
-                启用副关键词
+                {t.useSecondary}
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -277,12 +282,12 @@ export default function LorebooksPage() {
                     setEditingEntry({ ...editingEntry, preventRecursion: e.target.checked })
                   }
                 />
-                阻止递归
+                {t.preventRecursion}
               </label>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className={label}>插入顺序</label>
+                <label className={label}>{t.insertionOrder}</label>
                 <input
                   className={input}
                   type="number"
@@ -293,7 +298,7 @@ export default function LorebooksPage() {
                 />
               </div>
               <div>
-                <label className={label}>插入位置</label>
+                <label className={label}>{t.position}</label>
                 <select
                   className={input}
                   value={editingEntry.position}
@@ -304,18 +309,18 @@ export default function LorebooksPage() {
                     })
                   }
                 >
-                  <option value="beforeChar">角色描述前</option>
-                  <option value="afterChar">角色描述后</option>
-                  <option value="atDepth">历史深度注入</option>
-                  <option value="anTop">作者注上（不支持）</option>
-                  <option value="anBottom">作者注下（不支持）</option>
-                  <option value="beforeExample">示例前（不支持）</option>
-                  <option value="afterExample">示例后（不支持）</option>
-                  <option value="outlet">Outlet（不支持）</option>
+                  <option value="beforeChar">{t.positions.beforeChar}</option>
+                  <option value="afterChar">{t.positions.afterChar}</option>
+                  <option value="atDepth">{t.positions.atDepth}</option>
+                  <option value="anTop">{t.positions.anTop}</option>
+                  <option value="anBottom">{t.positions.anBottom}</option>
+                  <option value="beforeExample">{t.positions.beforeExample}</option>
+                  <option value="afterExample">{t.positions.afterExample}</option>
+                  <option value="outlet">{t.positions.outlet}</option>
                 </select>
               </div>
               <div>
-                <label className={label}>深度（atDepth）</label>
+                <label className={label}>{t.depth}</label>
                 <input
                   className={input}
                   type="number"
@@ -331,14 +336,14 @@ export default function LorebooksPage() {
                 className={`${btn} bg-neutral-800 hover:bg-neutral-700`}
                 onClick={() => setEditingEntry(null)}
               >
-                取消
+                {t.cancel}
               </button>
               <button
                 className={`${btn} bg-blue-700 text-white hover:bg-blue-600`}
                 disabled={busy}
                 onClick={() => void saveCurrentEntry()}
               >
-                保存条目
+                {t.saveEntry}
               </button>
             </div>
           </div>
@@ -354,7 +359,7 @@ export default function LorebooksPage() {
     return (
       <div className="space-y-2 rounded border border-neutral-800 p-3">
         <div>
-          <label className={label}>书名</label>
+          <label className={label}>{t.bookName}</label>
           <input
             className={input}
             defaultValue={current.name ?? ""}
@@ -368,11 +373,11 @@ export default function LorebooksPage() {
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <label className={label}>token 预算（留空 = 全局 25%）</label>
+            <label className={label}>{t.tokenBudget}</label>
             <input
               className={input}
               type="number"
-              placeholder="2048"
+              placeholder={t.tokenBudgetPlaceholder}
               defaultValue={current.tokenBudget ?? ""}
               onBlur={(e) => {
                 const value = e.target.value === "" ? null : Number(e.target.value);
@@ -381,11 +386,11 @@ export default function LorebooksPage() {
             />
           </div>
           <div>
-            <label className={label}>扫描深度</label>
+            <label className={label}>{t.scanDepth}</label>
             <input
               className={input}
               type="number"
-              placeholder="2"
+              placeholder={t.scanDepthPlaceholder}
               defaultValue={current.scanDepth ?? ""}
               onBlur={(e) => {
                 const value = e.target.value === "" ? null : Number(e.target.value);
@@ -400,7 +405,7 @@ export default function LorebooksPage() {
                 checked={current.isGlobal}
                 onChange={(e) => void updateBook(current.id, { isGlobal: e.target.checked })}
               />
-              全局书
+              {t.globalBook}
             </label>
           </div>
         </div>
@@ -414,7 +419,7 @@ export default function LorebooksPage() {
     }
     return (
       <div className="rounded border border-neutral-800 p-3">
-        <h3 className="mb-2 text-sm font-semibold">挂载到角色</h3>
+        <h3 className="mb-2 text-sm font-semibold">{t.mountTo}</h3>
         <div className="flex flex-wrap gap-3 text-sm">
           {characters.map((c) => (
             <label key={c.id} className="flex items-center gap-1.5">

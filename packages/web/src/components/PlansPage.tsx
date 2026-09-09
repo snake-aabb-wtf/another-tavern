@@ -4,17 +4,9 @@ import { useEffect, useState } from "react";
 import type { PlanData, SystemPlanSlotData } from "../api/plans.js";
 import { usePlansStore } from "../stores/plans.js";
 import { useSettingsStore } from "../stores/settings.js";
+import { plans as t } from "../ui-text.js";
 
-const SLOT_LABELS: Record<string, string> = {
-  main: "主提示 (main)",
-  wiBefore: "世界书·前",
-  persona: "用户人设",
-  description: "角色描述",
-  personality: "性格摘要",
-  scenario: "场景",
-  wiAfter: "世界书·后",
-  examples: "对话示例",
-};
+const SLOT_LABELS: Record<string, string> = t.slotLabels;
 
 export default function PlansPage() {
   const items = usePlansStore((s) => s.items);
@@ -76,9 +68,9 @@ export default function PlansPage() {
         postHistory: { enabled: phiEnabled, position: "historyAfter" },
       };
       await save(current.id, { name, plan });
-      setStatus("已保存 ✓");
+      setStatus(t.saved);
     } catch (e) {
-      setStatus(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.saveFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -86,12 +78,12 @@ export default function PlansPage() {
 
   async function doImport(file: File): Promise<void> {
     setBusy(true);
-    setStatus("导入中…");
+    setStatus(t.importingStatus);
     try {
       await importPresetFile(file);
-      setStatus("导入完成 ✓（映射摘要见左侧）");
+      setStatus(t.importDone);
     } catch (e) {
-      setStatus(`导入失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.importFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -108,7 +100,7 @@ export default function PlansPage() {
       {/* 左：计划列表 + 导入 + 全局默认 */}
       <div className="w-72 shrink-0 space-y-3 overflow-y-auto border-r border-neutral-800 p-3">
         <div>
-          <label className={label}>导入 ST 预设 JSON</label>
+          <label className={label}>{t.importSt}</label>
           <input
             type="file"
             accept=".json"
@@ -124,11 +116,14 @@ export default function PlansPage() {
         </div>
         {lastImport !== null && (
           <div className="rounded border border-neutral-800 p-2 text-xs text-neutral-400">
-            <p className="text-neutral-200">映射结果：{lastImport.name}</p>
-            <p>启用槽位：{lastImport.enabledSlots.join(", ") || "—"}</p>
-            <p>禁用槽位：{lastImport.disabledSlots.join(", ") || "—"}</p>
+            <p className="text-neutral-200">
+              {t.importSummary}
+              {lastImport.name}
+            </p>
+            <p>{t.enabledSlots(lastImport.enabledSlots.join(", ") || "—")}</p>
+            <p>{t.disabledSlots(lastImport.disabledSlots.join(", ") || "—")}</p>
             {lastImport.droppedFields.length > 0 && (
-              <p className="text-amber-400">未映射/丢弃：{lastImport.droppedFields.join("、")}</p>
+              <p className="text-amber-400">{t.dropped(lastImport.droppedFields.join("、"))}</p>
             )}
           </div>
         )}
@@ -136,10 +131,10 @@ export default function PlansPage() {
           className={`${btn} w-full bg-neutral-800 hover:bg-neutral-700`}
           disabled={busy}
           onClick={() => {
-            void create(`计划 ${new Date().toLocaleString()}`).then((id) => void open(id));
+            void create(t.autoName(new Date().toLocaleString())).then((id) => void open(id));
           }}
         >
-          ＋ 新建计划
+          {t.newPlan}
         </button>
         <ul className="space-y-1">
           {items.map((p) => (
@@ -151,7 +146,7 @@ export default function PlansPage() {
                 onClick={() => void open(p.id)}
               >
                 {settings?.defaultPlanId === p.id && (
-                  <span className="mr-1 text-amber-400">[默认]</span>
+                  <span className="mr-1 text-amber-400">{t.defaultBadge}</span>
                 )}
                 {p.name}
               </button>
@@ -163,7 +158,7 @@ export default function PlansPage() {
       {/* 右：计划编辑器 */}
       <div className="flex-1 overflow-y-auto p-4">
         {current === null ? (
-          <p className="text-sm text-neutral-500">从左侧选择或导入一个组装计划。</p>
+          <p className="text-sm text-neutral-500">{t.pickPlan}</p>
         ) : (
           <div className="mx-auto max-w-2xl space-y-4">
             <div className="flex items-center gap-2">
@@ -177,11 +172,11 @@ export default function PlansPage() {
                 disabled={busy}
                 onClick={() => {
                   void saveSettings({ defaultPlanId: current.id }).then(() =>
-                    setStatus("已设为全局默认 ✓"),
+                    setStatus(t.setGlobalDefaultDone),
                   );
                 }}
               >
-                设为全局默认
+                {t.setGlobalDefault}
               </button>
             </div>
 
@@ -192,7 +187,7 @@ export default function PlansPage() {
                     <span className="flex flex-col">
                       <button
                         className={iconBtn}
-                        aria-label="上移"
+                        aria-label={t.moveUp}
                         disabled={index === 0 || busy}
                         onClick={() => move(index, -1)}
                       >
@@ -200,7 +195,7 @@ export default function PlansPage() {
                       </button>
                       <button
                         className={iconBtn}
-                        aria-label="下移"
+                        aria-label={t.moveDown}
                         disabled={index === slots.length - 1 || busy}
                         onClick={() => move(index, 1)}
                       >
@@ -222,7 +217,7 @@ export default function PlansPage() {
                           )
                         }
                       />
-                      启用
+                      {t.enabled}
                     </label>
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-xs">
@@ -237,7 +232,7 @@ export default function PlansPage() {
                           )
                         }
                       />
-                      默认来源
+                      {t.defaultSource}
                     </label>
                     <label className="flex items-center gap-1">
                       <input
@@ -254,13 +249,13 @@ export default function PlansPage() {
                           )
                         }
                       />
-                      自定义文本
+                      {t.customText}
                     </label>
                   </div>
                   {slot.source === "custom" && (
                     <textarea
                       className={`${input} mt-2 h-20`}
-                      placeholder="自定义内容（支持 {{char}} / {{user}} 宏）"
+                      placeholder={t.customPlaceholder}
                       value={slot.content ?? ""}
                       onChange={(e) =>
                         setSlots((prev) =>
@@ -276,14 +271,14 @@ export default function PlansPage() {
             </div>
 
             <div className="flex items-center justify-between rounded border border-neutral-800 p-3">
-              <span className="text-sm">Post-History Instructions（历史后注入）</span>
+              <span className="text-sm">{t.phi}</span>
               <label className="flex items-center gap-1 text-xs">
                 <input
                   type="checkbox"
                   checked={phiEnabled}
                   onChange={(e) => setPhiEnabled(e.target.checked)}
                 />
-                启用
+                {t.enabled}
               </label>
             </div>
 
@@ -293,7 +288,7 @@ export default function PlansPage() {
                 disabled={busy}
                 onClick={() => void doSave()}
               >
-                保存计划
+                {t.savePlan}
               </button>
               <button
                 className={`${btn} bg-neutral-800 text-red-300 hover:bg-neutral-700`}
@@ -302,7 +297,7 @@ export default function PlansPage() {
                   void remove(current.id);
                 }}
               >
-                删除计划
+                {t.deletePlan}
               </button>
               <span className="text-xs text-neutral-400">{status}</span>
             </div>

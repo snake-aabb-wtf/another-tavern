@@ -39,6 +39,12 @@ export function plansRoutes(deps: AppDeps): Hono {
         400,
       );
     }
+    if (file.size > 5 * 1024 * 1024) {
+      return c.json(
+        { error: { code: "file_too_large", message: "文件超过大小上限（5MB）。" } },
+        413,
+      );
+    }
     const text = await file.text();
     try {
       const { parseOpenAiPreset } = await import("@another-tavern/engine");

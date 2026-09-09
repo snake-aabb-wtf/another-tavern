@@ -29,12 +29,12 @@
 
 不得更改，不得自行引入新框架或库：
 
-| 层     | 技术                                                               |
-| ------ | ------------------------------------------------------------------ |
-| 仓库   | pnpm workspaces；TypeScript strict 全开；vitest；eslint + prettier |
-| server | Hono + Drizzle ORM（SQLite）                                       |
-| web    | Vite + React + Tailwind（禁用 Next.js 与一切组件库）               |
-| 运行时 | Node ≥ 20，保持与 Bun 兼容（禁用 Bun 特有 API）                    |
+| 层     | 技术                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------ |
+| 仓库   | pnpm workspaces；TypeScript strict 全开；vitest；eslint + prettier                         |
+| server | Hono + Drizzle ORM（SQLite）                                                               |
+| web    | Vite + React + Tailwind（禁用 Next.js 与一切组件库）                                       |
+| 运行时 | Node ≥ 22.5（M7 发布基线，`node:sqlite` 需要此版本），保持与 Bun 兼容（禁用 Bun 特有 API） |
 
 ## 5. 依赖政策
 
@@ -47,8 +47,16 @@
 
 - 发现 spec 冲突、缺口或歧义：**必须停下来向人类提问**，不得自行决定，不得猜测后继续。
 - 只做当前任务范围内的事。不做未经指派的"顺手"功能（新路由、新数据表、新 UI 组件等一律不算顺手）。
-- 不引入 Docker、CI、发布配置、Bun 打包，除非任务明确要求。
+- 分发与 CI 相关工作（Dockerfile、GitHub Actions、Bun 打包）仅限发布里程碑（M7 起已建立基线，后续改动须与既有 CI/分发配置一致）。
 - 不放宽配置：不得在包内覆盖根 `tsconfig.base.json` 的 strict 项，不得添加 eslint disable 除非附注释说明原因。
+
+## 6b. 开源协作（M7 起，公开仓库生效）
+
+- **许可证红线**：本仓库以 MIT 发布。**严禁引入、复制或移植任何 SillyTavern（AGPL-3.0）源码**；与 ST 的兼容仅限文件格式层面（JSON/PNG 数据结构）。引用其行为时只能基于公开文档与对行为的独立分析，不得粘贴其源码。引入任何第三方代码/资产前必须核实其许可证允许 MIT 再分发，并在文件头注明来源。
+- **docs/ 是唯一实现依据**：行为规格、字段表、接口契约以 docs/ 为准；改行为先改 docs（或提交提案）。
+- **Commit / PR 规范**：Conventional Commits（`feat:`/`fix:`/`docs:`/`chore:`/`test:`）；一个 PR 一个主题；PR 描述必须包含动机、改动点、验证方式（贴命令输出）；提交前 `pnpm format && pnpm lint && pnpm test` 全绿。
+- **UI 文案**：界面文案一律使用 `packages/web/src/ui-text.ts` 中的常量，不得在组件内硬编码字符串（为 i18n 铺路；新增文案先加常量再引用）。
+- **秘钥与数据**：API key、聊天记录只存在于本地 SQLite（`packages/server/data/`），已被 .gitignore 排除；任何真实凭据严禁进入代码、测试与提交历史。
 
 ## 7. 代码规范
 

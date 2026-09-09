@@ -13,6 +13,9 @@ import type { AppDeps } from "../app.js";
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47] as const;
 
+/** 安全基线（M7）：角色卡上传大小上限。 */
+export const MAX_CARD_BYTES = 20 * 1024 * 1024;
+
 export function charactersRoutes(deps: AppDeps): Hono {
   const app = new Hono();
 
@@ -24,6 +27,17 @@ export function charactersRoutes(deps: AppDeps): Hono {
       return c.json(
         { error: { code: "file_missing", message: 'multipart 字段 "file" 缺失。' } },
         400,
+      );
+    }
+    if (file.size > MAX_CARD_BYTES) {
+      return c.json(
+        {
+          error: {
+            code: "file_too_large",
+            message: `文件超过大小上限（${Math.floor(MAX_CARD_BYTES / 1024 / 1024)}MB）。`,
+          },
+        },
+        413,
       );
     }
     const bytes = new Uint8Array(await file.arrayBuffer());

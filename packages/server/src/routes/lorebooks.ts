@@ -44,6 +44,12 @@ export function lorebooksRoutes(deps: AppDeps): Hono {
         400,
       );
     }
+    if (file.size > 5 * 1024 * 1024) {
+      return c.json(
+        { error: { code: "file_too_large", message: "文件超过大小上限（5MB）。" } },
+        413,
+      );
+    }
     const isGlobal = body.isGlobal === "1" || body.isGlobal === "true";
     const text = await file.text();
     try {

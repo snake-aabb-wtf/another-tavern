@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 
 import { useSettingsStore } from "../stores/settings.js";
+import { settings as t } from "../ui-text.js";
 
 export default function SettingsPage() {
   const settings = useSettingsStore((s) => s.settings);
@@ -49,9 +50,9 @@ export default function SettingsPage() {
     try {
       await save({ baseUrl, model, apiKey, sampling });
       setApiKey("");
-      setStatus("已保存（API key 不回显明文）✓");
+      setStatus(t.saved);
     } catch (e) {
-      setStatus(`保存失败：${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`${t.saveFailed}${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -65,10 +66,10 @@ export default function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-xl space-y-4">
-        <h2 className="text-lg font-semibold">设置</h2>
+        <h2 className="text-lg font-semibold">{t.title}</h2>
         {error !== null && <p className="text-xs text-red-400">{error}</p>}
         <div>
-          <label className={label}>上游 baseUrl</label>
+          <label className={label}>{t.baseUrl}</label>
           <input
             className={input}
             value={baseUrl}
@@ -77,9 +78,7 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className={label}>
-            API key（{settings?.hasApiKey === true ? "已配置" : "未配置"}；留空保留原值）
-          </label>
+          <label className={label}>{t.apiKeyLabel(settings?.hasApiKey === true)}</label>
           <input
             className={input}
             type="password"
@@ -89,18 +88,18 @@ export default function SettingsPage() {
           />
         </div>
         <div>
-          <label className={label}>模型</label>
+          <label className={label}>{t.model}</label>
           <input
             className={input}
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="gpt-4o"
+            placeholder={t.modelPlaceholder}
           />
         </div>
         <fieldset className="space-y-3 rounded border border-neutral-800 p-3">
-          <legend className="px-1 text-xs text-neutral-400">采样参数（留空 = 不发送该参数）</legend>
+          <legend className="px-1 text-xs text-neutral-400">{t.samplingLegend}</legend>
           <div>
-            <label className={label}>temperature</label>
+            <label className={label}>{t.temperature}</label>
             <input
               className={input}
               type="number"
@@ -112,7 +111,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className={label}>top_p</label>
+            <label className={label}>{t.topP}</label>
             <input
               className={input}
               type="number"
@@ -124,7 +123,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className={label}>max_tokens</label>
+            <label className={label}>{t.maxTokens}</label>
             <input
               className={input}
               type="number"
@@ -141,7 +140,7 @@ export default function SettingsPage() {
             disabled={busy}
             onClick={() => void doSave()}
           >
-            保存
+            {t.save}
           </button>
           <span className="text-xs text-neutral-400">{status}</span>
         </div>

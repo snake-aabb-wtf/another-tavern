@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Assemble portable package
+        run: |
+          pnpm --filter @another-tavern/server deploy --prod /pkg/app
+          mkdir -p /pkg/web-dist
+          cp -r packages/web/dist/* /pkg/web-dist/
+          cp -r packages/server/drizzle /pkg/app/drizzle
+          printf '@echo off\r\ncd /d %%~dp0app\r\nset STATIC_DIR=web-dist\r\nset OPEN_BROWSER=1\r\nnode dist/main.js\r\n' > /pkg/start.cmd
+          printf '#!/bin/sh\ncd "$(dirname "$0")/app"\nexport STATIC_DIR=web-dist\nexport OPEN_BROWSER=1\nnode dist/main.js\n' > /pkg/start.sh
+          chmod +x /pkg/start.sh
+      - name: Smoke test the package (clean-environment verification)
+        run: |
+          cd /pkg/app
+          node dist/main.js &
+          sleep 2
+          curl -fsS http://localhost:3001/api/health
+          curl -fsS -o /dev/null -w "web index: %{http_code}\n" http://localhost:3001/
+      - name: Package zip
+        run: |
+          cd /pkg
+          zip -qr "another-tavern-${{ github.ref_name }}-node22.zip" .
+      - name: Verify Dockerfile builds
+        run: docker build -t another-tavern:ci .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: another-tavern-*.zip
+          body_path: RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

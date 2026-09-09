@@ -10,6 +10,7 @@ import LorebooksPage from "./components/LorebooksPage.js";
 import PlansPage from "./components/PlansPage.js";
 import SettingsPage from "./components/SettingsPage.js";
 import Sidebar from "./components/Sidebar.js";
+import { app as t } from "./ui-text.js";
 import { useCharactersStore } from "./stores/characters.js";
 import { useLorebooksStore } from "./stores/lorebooks.js";
 import { usePlansStore } from "./stores/plans.js";
@@ -19,11 +20,11 @@ import { useSessionsStore } from "./stores/sessions.js";
 type Page = "chat" | "characters" | "lorebooks" | "plans" | "settings";
 
 const PAGE_LABELS: ReadonlyArray<readonly [Page, string]> = [
-  ["chat", "聊天"],
-  ["characters", "角色卡"],
-  ["lorebooks", "世界书"],
-  ["plans", "计划"],
-  ["settings", "设置"],
+  ["chat", t.pages.chat],
+  ["characters", t.pages.characters],
+  ["lorebooks", t.pages.lorebooks],
+  ["plans", t.pages.plans],
+  ["settings", t.pages.settings],
 ];
 
 export default function App() {
@@ -48,12 +49,12 @@ export default function App() {
       <header className="flex items-center gap-3 border-b border-neutral-800 px-4 py-2">
         <button
           className="rounded p-1 hover:bg-neutral-800 md:hidden"
-          aria-label="打开会话列表"
+          aria-label={t.openSidebar}
           onClick={() => setDrawer(true)}
         >
           ☰
         </button>
-        <h1 className="text-lg font-semibold tracking-tight">Another Tavern</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{t.title}</h1>
         <nav className="ml-auto flex gap-1 text-sm">
           {PAGE_LABELS.map(([id, label]) => (
             <button

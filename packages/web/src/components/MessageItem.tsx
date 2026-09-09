@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import type { ChatMessageRow } from "../api/sessions.js";
 import { useSessionsStore } from "../stores/sessions.js";
+import { chat as t, messageItem as ti } from "../ui-text.js";
 
 interface Props {
   message: ChatMessageRow;
@@ -48,7 +49,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 void editMessage(message.id, draft).then(() => setEditing(false));
               }}
             >
-              保存
+              {t.save}
             </button>
             <button
               className="rounded px-2 py-0.5 hover:bg-neutral-800 hover:text-neutral-200"
@@ -57,7 +58,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 setEditing(false);
               }}
             >
-              取消
+              {t.cancel}
             </button>
           </>
         ) : (
@@ -69,13 +70,13 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 setEditing(true);
               }}
             >
-              编辑
+              {t.edit}
             </button>
             {isAssistant && candidateCount > 0 && (
               <span className="flex items-center gap-1">
                 <button
                   className="disabled:opacity-30"
-                  aria-label="上一个候选"
+                  aria-label={ti.prevCandidate}
                   disabled={message.swipeIndex <= 0 || busy}
                   onClick={() => void swipeTo(message.id, message.swipeIndex - 1)}
                 >
@@ -87,16 +88,16 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 {isLastAssistant && message.swipeIndex >= candidateCount - 1 ? (
                   <button
                     className="disabled:opacity-30"
-                    aria-label="生成新候选"
+                    aria-label={ti.newCandidate}
                     disabled={busy}
                     onClick={() => void regenerate()}
                   >
-                    → 重新生成
+                    → {t.regenerate}
                   </button>
                 ) : (
                   <button
                     className="disabled:opacity-30"
-                    aria-label="下一个候选"
+                    aria-label={ti.nextCandidate}
                     disabled={message.swipeIndex >= candidateCount - 1 || busy}
                     onClick={() => void swipeTo(message.id, message.swipeIndex + 1)}
                   >
@@ -111,7 +112,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 disabled={busy}
                 onClick={() => void regenerate()}
               >
-                重新生成
+                {t.regenerate}
               </button>
             )}
           </>

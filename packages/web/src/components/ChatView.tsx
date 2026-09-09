@@ -5,6 +5,7 @@ import { useLorebooksStore } from "../stores/lorebooks.js";
 import { usePlansStore } from "../stores/plans.js";
 import { useSessionsStore } from "../stores/sessions.js";
 import { useSettingsStore } from "../stores/settings.js";
+import { chat as t } from "../ui-text.js";
 import MessageItem from "./MessageItem.js";
 
 export default function ChatView() {
@@ -21,7 +22,8 @@ export default function ChatView() {
   const lastPrompt = useSessionsStore((s) => s.lastPrompt);
   const plans = usePlansStore((s) => s.items);
   const settings = useSettingsStore((s) => s.settings);
-  const globalBooks = useLorebooksStore((s) => s.items.filter((b) => b.isGlobal));
+  const lorebookItems = useLorebooksStore((s) => s.items);
+  const globalBooks = lorebookItems.filter((b) => b.isGlobal);
   const [showPrompt, setShowPrompt] = useState(false);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -44,7 +46,7 @@ export default function ChatView() {
   if (currentId === null) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-neutral-500">
-        从左侧选择一个会话，或在「角色卡」页新建会话。
+        {t.pickSession}
       </div>
     );
   }
@@ -64,18 +66,18 @@ export default function ChatView() {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 px-4 py-2 text-xs text-neutral-400">
         <span className="text-sm text-neutral-200">{session?.title || "会话"}</span>
         <span className="flex items-center gap-1">
-          计划：
+          {t.planLabel}
           <select
             className="rounded bg-neutral-900 px-1 py-0.5 text-xs"
             value={session?.planId ?? ""}
             onChange={(e) => void setPlan(e.target.value === "" ? null : e.target.value)}
           >
             <option value="">
-              全局默认（
-              {settings?.defaultPlanId === null || settings?.defaultPlanId === undefined
-                ? "内置默认"
-                : (plans.find((p) => p.id === settings.defaultPlanId)?.name ?? "?")}
-              ）
+              {t.followGlobalDefault(
+                settings?.defaultPlanId === null || settings?.defaultPlanId === undefined
+                  ? t.builtinDefault
+                  : (plans.find((p) => p.id === settings.defaultPlanId)?.name ?? "?"),
+              )}
             </option>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
@@ -84,9 +86,7 @@ export default function ChatView() {
             ))}
           </select>
         </span>
-        <span>
-          世界书：卡内 + 挂载 {linkedBookIds.length} · 全局 {globalBooks.length}
-        </span>
+        <span>{t.loreSources(linkedBookIds.length, globalBooks.length)}</span>
         <button
           className="ml-auto rounded px-2 py-0.5 hover:bg-neutral-800 hover:text-neutral-200"
           onClick={() => {
@@ -94,16 +94,14 @@ export default function ChatView() {
             setShowPrompt((v) => !v);
           }}
         >
-          查看本次最终 prompt
+          {t.viewLastPrompt}
         </button>
       </div>
 
       {showPrompt && (
         <div className="max-h-60 space-y-2 overflow-y-auto border-b border-neutral-800 bg-neutral-900/60 p-3">
           {lastPrompt === null ? (
-            <p className="text-xs text-neutral-500">
-              尚未组装（发送一条消息后这里显示最终 prompt）。
-            </p>
+            <p className="text-xs text-neutral-500">{t.noPromptYet}</p>
           ) : (
             lastPrompt.messages.map((m, i) => (
               <div key={i} className="text-xs">
@@ -134,7 +132,7 @@ export default function ChatView() {
       <div className="flex gap-2 border-t border-neutral-800 p-3">
         <textarea
           className="h-16 flex-1 resize-none rounded bg-neutral-900 p-2 text-sm outline-none ring-neutral-700 focus:ring-1"
-          placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
+          placeholder={t.inputPlaceholder}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -149,14 +147,14 @@ export default function ChatView() {
           disabled={busy || draft.trim() === ""}
           onClick={submit}
         >
-          发送
+          {t.send}
         </button>
         <button
           className="self-end rounded bg-neutral-800 px-3 py-2 text-sm hover:bg-neutral-700 disabled:opacity-40"
           disabled={busy}
           onClick={() => void regenerate()}
         >
-          重新生成
+          {t.regenerate}
         </button>
       </div>
     </div>
