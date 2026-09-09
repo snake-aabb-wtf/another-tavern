@@ -42,7 +42,7 @@ jobs:
       - run: pnpm build
       - name: Assemble portable package
         run: |
-          pnpm --filter @another-tavern/server deploy --prod ./release-pkg/app
+          pnpm --filter @another-tavern/server deploy --legacy --prod ./release-pkg/app
           mkdir -p ./release-pkg/web-dist
           cp -r packages/web/dist/* ./release-pkg/web-dist/
           cp -r packages/server/drizzle ./release-pkg/app/drizzle
