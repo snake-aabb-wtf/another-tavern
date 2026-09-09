@@ -25,48 +25,59 @@ mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDatabase(dbPath, migrationsDir);
 const app = createApp({ db });
 
-// 分发模式：托管 web 构建产物（API 路由优先，其余回落 SPA index.html）。
-// 自实现静态处理（MIME 映射 + SPA fallback），不依赖 serveStatic 的路径解析行为。
-if (staticDir !== undefined && staticDir !== "") {
-  const root = resolve(staticDir);
-  const MIME: Record<string, string> = {
-    ".html": "text/html; charset=utf-8",
-    ".js": "text/javascript",
-    ".css": "text/css",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-    ".json": "application/json",
-    ".woff2": "font/woff2",
-    ".ico": "image/x-icon",
-  };
+/** SPA 静态文件处理（M7）：MIME 映射 + 目录穿越防护 + index.html 回落。 */
+const MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".json": "application/json",
+  ".woff2": "font/woff2",
+  ".ico": "image/x-icon",
+};
 
-  app.get("*", (c) => {
-    console.log("[debug] wildcard hit:", c.req.path, "root:", root);
-    if (c.req.path.startsWith("/api")) {
-      return c.json({ error: { code: "not_found", message: "未知 API 路径。" } }, 404);
+function staticResponse(pathname: string): Response | undefined {
+  if (staticDir === undefined || staticDir === "") {
+    return undefined;
+  }
+  const root = resolve(staticDir);
+  const relative = pathname === "/" ? "/index.html" : pathname;
+  const file = join(root, relative);
+  if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory()) {
+    const index = join(root, "index.html");
+    if (!existsSync(index)) {
+      return new Response("web dist missing", { status: 500 });
     }
-    const relative = c.req.path === "/" ? "/index.html" : c.req.path;
-    const file = join(root, relative);
-    console.log("[debug] file:", file, "exists:", existsSync(file));
-    if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory()) {
-      // SPA fallback：未知路径回 index.html
-      const index = join(root, "index.html");
-      return c.body(readFileSync(index), 200, { "content-type": MIME[".html"] ?? "text/html" });
-    }
-    const type = MIME[extname(file)] ?? "application/octet-stream";
-    return c.body(readFileSync(file), 200, { "content-type": type });
+    return new Response(readFileSync(index), {
+      headers: { "content-type": MIME[".html"] ?? "text/html" },
+    });
+  }
+  return new Response(readFileSync(file), {
+    headers: { "content-type": MIME[extname(file)] ?? "application/octet-stream" },
   });
 }
 
-serve({ fetch: app.fetch, port }, (info) => {
+/** 分发模式：非 /api 请求由静态处理接管（server 层分流，不依赖 Hono 路由匹配）。 */
+const fetchHandler = (req: Request): Response | Promise<Response> => {
+  const url = new URL(req.url);
+  if (staticDir !== undefined && staticDir !== "" && !url.pathname.startsWith("/api")) {
+    const res = staticResponse(url.pathname);
+    if (res !== undefined) {
+      return res;
+    }
+  }
+  return app.fetch(req);
+};
+
+serve({ fetch: fetchHandler, port }, (info) => {
   console.log(`[another-tavern] server listening on http://localhost:${info.port}`);
   console.log(`[another-tavern] database: ${dbPath}`);
   if (staticDir !== undefined && staticDir !== "") {
     console.log(`[another-tavern] web ui: http://localhost:${info.port} (static: ${staticDir})`);
     if (process.env.OPEN_BROWSER === "1") {
       const url = `http://localhost:${info.port}`;
-      const cmd =
-        process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
+      const cmd = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
       const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
       try {
         spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
