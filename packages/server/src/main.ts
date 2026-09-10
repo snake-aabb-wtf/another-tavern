@@ -1,6 +1,7 @@
 /**
  * server 启动入口：node dist/main.js。
  * 环境变量：
+ * - HOST（默认 127.0.0.1；显式设为 0.0.0.0 才监听全部网卡）
  * - PORT（默认 3001）
  * - DB_PATH（默认 data/app.db）
  * - MIGRATIONS_DIR（默认 drizzle）
@@ -18,6 +19,7 @@ import { openDatabase } from "./db/client.js";
 
 const dbPath = resolve(process.env.DB_PATH ?? "data/app.db");
 const migrationsDir = resolve(process.env.MIGRATIONS_DIR ?? "drizzle");
+const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 3001);
 // 静态托管：显式 STATIC_DIR 优先；否则探测分发布局（web-dist 存在即启用，双击/一条命令零配置）
 const staticDir =
@@ -73,13 +75,13 @@ const fetchHandler = (req: Request): Response | Promise<Response> => {
   return app.fetch(req);
 };
 
-serve({ fetch: fetchHandler, port }, (info) => {
-  console.log(`[another-tavern] server listening on http://localhost:${info.port}`);
+serve({ fetch: fetchHandler, port, hostname: host }, (info) => {
+  console.log(`[another-tavern] server listening on http://${host}:${info.port}`);
   console.log(`[another-tavern] database: ${dbPath}`);
   if (staticDir !== undefined && staticDir !== "") {
     console.log(`[another-tavern] web ui: http://localhost:${info.port} (static: ${staticDir})`);
     if (process.env.OPEN_BROWSER === "1") {
-      const url = `http://localhost:${info.port}`;
+      const url = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${info.port}`;
       const cmd =
         process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
       const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];

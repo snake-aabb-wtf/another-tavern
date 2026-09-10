@@ -13,6 +13,7 @@ RUN pnpm install --frozen-lockfile \
 FROM node:22-alpine
 WORKDIR /app
 ENV PORT=3001 \
+    HOST=0.0.0.0 \
     DB_PATH=data/app.db \
     MIGRATIONS_DIR=drizzle \
     STATIC_DIR=web-dist \

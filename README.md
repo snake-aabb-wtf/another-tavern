@@ -98,18 +98,18 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 常用命令
 
-| 命令                                         | 作用                                                         |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| `pnpm install`                               | 安装依赖                                                     |
-| `pnpm dev`                                   | **一条命令同时启动 server(:3001) 与 web(:5173)**（并行）     |
-| `pnpm build`                                 | 依次构建全部包（engine → server → web，按拓扑顺序）          |
-| `pnpm test`                                  | 运行全部 vitest 测试                                         |
-| `pnpm typecheck`                             | 对全部包运行 `tsc --noEmit`（含测试文件）                    |
-| `pnpm lint`                                  | ESLint 检查全部源码                                          |
-| `pnpm format`                                | Prettier 格式化（提交前先跑一遍）                            |
-| `pnpm format:check`                          | Prettier 格式校验                                            |
-| `pnpm --filter @another-tavern/server start` | 仅启动 server（需先 build；`PORT`/`DB_PATH` 环境变量可覆盖） |
-| `pnpm --filter @another-tavern/web dev`      | 仅启动 web 开发服务器                                        |
+| 命令                                         | 作用                                                                                            |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `pnpm install`                               | 安装依赖                                                                                        |
+| `pnpm dev`                                   | **一条命令同时启动 server(:3001) 与 web(:5173)**（并行）                                        |
+| `pnpm build`                                 | 依次构建全部包（engine → server → web，按拓扑顺序）                                             |
+| `pnpm test`                                  | 运行全部 vitest 测试                                                                            |
+| `pnpm typecheck`                             | 对全部包运行 `tsc --noEmit`（含测试文件）                                                       |
+| `pnpm lint`                                  | ESLint 检查全部源码                                                                             |
+| `pnpm format`                                | Prettier 格式化（提交前先跑一遍）                                                               |
+| `pnpm format:check`                          | Prettier 格式校验                                                                               |
+| `pnpm --filter @another-tavern/server start` | 仅启动 server（需先 build；默认仅监听 `127.0.0.1`；`HOST` / `PORT` / `DB_PATH` 环境变量可覆盖） |
+| `pnpm --filter @another-tavern/web dev`      | 仅启动 web 开发服务器                                                                           |
 
 构建产物位于各包 `dist/`（web 为 `packages/web/dist/`，可直接静态部署）。
 server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖），迁移文件在 `packages/server/drizzle/`。
@@ -131,7 +131,7 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 
 - **API key 与聊天记录以明文存储在本地 SQLite**（`data/app.db`，Docker 中为 `/app/data`）——这是单机自托管工具的刻意取舍：数据不出本机。
 - 该文件包含你的上游 API key，**不要**把它提交到任何仓库、发给别人或放进截图。
-- 服务默认监听 `0.0.0.0:3001`（本机所有网卡）；请勿在不受信任的网络中直接暴露，或用防火墙/反向代理 + 认证限制访问。
+- 服务默认监听 `127.0.0.1:3001`（仅本机）。如确实需要局域网或容器外访问，须显式设置 `HOST=0.0.0.0`；Docker 镜像已预设该值以支持 `-p 3001:3001`。开放后请勿在不受信任的网络中直接暴露，或使用防火墙/反向代理 + 认证限制访问。
 - 上传的角色卡/世界书文件有大小上限（20MB / 5MB）并在解析前做格式校验。
 
 ## 与 SillyTavern 的功能差异
