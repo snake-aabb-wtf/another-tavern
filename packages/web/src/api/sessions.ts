@@ -5,7 +5,19 @@ export interface SessionSummary {
   id: string;
   characterId: string;
   title: string;
+  kind: "single" | "group";
+  groupSettings: Record<string, unknown> | null;
   planId: string | null;
+  createdAt: string;
+}
+
+export interface SessionMember {
+  sessionId: string;
+  characterId: string;
+  characterName: string;
+  position: number;
+  muted: boolean;
+  talkativeness: number;
   createdAt: string;
 }
 
@@ -14,6 +26,8 @@ export interface ChatMessageRow {
   sessionId: string;
   role: "user" | "assistant" | "system";
   content: string;
+  speakerCharacterId?: string | null;
+  speakerName?: string | null;
   status: "pending" | "completed" | "failed" | "cancelled";
   swipeCandidates: string[];
   swipeIndex: number;
@@ -23,6 +37,7 @@ export interface ChatMessageRow {
 
 export interface SessionDetail {
   session: SessionSummary;
+  members: SessionMember[];
   messages: ChatMessageRow[];
 }
 

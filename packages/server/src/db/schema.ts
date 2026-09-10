@@ -76,12 +76,36 @@ export const chatSessions = sqliteTable("chat_sessions", {
     .notNull()
     .references(() => characters.id, { onDelete: "cascade" }),
   title: text("title").notNull().default(""),
+  /** 群聊基础类型；single 保持既有单角色会话语义。 */
+  kind: text("kind", { enum: ["single", "group"] })
+    .notNull()
+    .default("single"),
+  /** 群聊配置 JSON；单聊为 null。 */
+  groupSettings: text("group_settings"),
   /** M4：会话组装计划；null = 引擎默认计划。删计划回落默认。 */
   planId: text("plan_id").references(() => assemblyPlans.id, { onDelete: "set null" }),
   /** M4：最近一次组装的最终 messages JSON（调试端点用）。 */
   lastMessages: text("last_messages"),
   createdAt: timestamp(),
 });
+
+/** 会话成员：单聊也保留一条成员记录，为群聊扩展提供统一来源。 */
+export const sessionMembers = sqliteTable(
+  "session_members",
+  {
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => chatSessions.id, { onDelete: "cascade" }),
+    characterId: text("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    muted: integer("muted").notNull().default(0),
+    talkativeness: integer("talkativeness").notNull().default(50),
+    createdAt: timestamp(),
+  },
+  (table) => [primaryKey({ columns: [table.sessionId, table.characterId] })],
+);
 
 /**
  * 消息：seq 为会话内序号；assistant 消息的 swipe 候选存 JSON 数组，
@@ -94,6 +118,12 @@ export const messages = sqliteTable("messages", {
     .references(() => chatSessions.id, { onDelete: "cascade" }),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
   content: text("content").notNull(),
+  /** assistant 消息的实际发言角色；单聊迁移后自动回填。 */
+  speakerCharacterId: text("speaker_character_id").references(() => characters.id, {
+    onDelete: "set null",
+  }),
+  /** 发言者名称快照，避免角色改名后历史身份漂移。 */
+  speakerName: text("speaker_name"),
   status: text("status", { enum: ["pending", "completed", "failed", "cancelled"] })
     .notNull()
     .default("completed"),

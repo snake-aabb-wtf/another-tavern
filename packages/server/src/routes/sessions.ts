@@ -55,7 +55,11 @@ export function sessionsRoutes(deps: AppDeps): Hono {
     if (session === undefined) {
       return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
     }
-    return c.json({ session, messages: deps.db.repo.listMessages(session.id) });
+    return c.json({
+      session,
+      members: deps.db.repo.listSessionMembers(session.id),
+      messages: deps.db.repo.listMessages(session.id),
+    });
   });
 
   // M4：切换会话组装计划（null = 回落默认）

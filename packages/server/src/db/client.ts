@@ -23,8 +23,22 @@ export interface SessionRow {
   id: string;
   characterId: string;
   title: string;
+  kind: SessionKind;
+  groupSettings: Record<string, unknown> | null;
   /** M4：会话组装计划 id；null = 引擎默认计划。 */
   planId: string | null;
+  createdAt: string;
+}
+
+export type SessionKind = "single" | "group";
+
+export interface SessionMemberRow {
+  sessionId: string;
+  characterId: string;
+  characterName: string;
+  position: number;
+  muted: boolean;
+  talkativeness: number;
   createdAt: string;
 }
 
@@ -33,6 +47,10 @@ export interface MessageRow {
   sessionId: string;
   role: "user" | "assistant" | "system";
   content: string;
+  /** assistant 消息实际对应的角色；user/system 为 null。 */
+  speakerCharacterId: string | null;
+  /** 发言者名称快照；用于历史显示和群聊 Prompt 身份标注。 */
+  speakerName: string | null;
   /** 一次发送/生成生命周期；历史数据与手动消息均为 completed。 */
   status: MessageStatus;
   /** swipe_candidates 列已从 JSON 还原。 */
@@ -136,13 +154,14 @@ export class Repo {
     this.sqlite
       .prepare("INSERT INTO chat_sessions (id, character_id, title, plan_id) VALUES (?, ?, ?, ?)")
       .run(id, characterId, title, planId);
+    this.insertSessionMember(id, characterId, 0);
     return this.getSession(id) as SessionRow;
   }
 
   listSessions(): SessionRow[] {
     return this.sqlite
       .prepare(
-        "SELECT id, character_id, title, plan_id, created_at FROM chat_sessions ORDER BY created_at",
+        "SELECT id, character_id, title, kind, group_settings, plan_id, created_at FROM chat_sessions ORDER BY created_at",
       )
       .all()
       .map((row) => mapSession(row as Record<string, unknown>));
@@ -151,10 +170,55 @@ export class Repo {
   getSession(id: string): SessionRow | undefined {
     const row = this.sqlite
       .prepare(
-        "SELECT id, character_id, title, plan_id, created_at FROM chat_sessions WHERE id = ?",
+        "SELECT id, character_id, title, kind, group_settings, plan_id, created_at FROM chat_sessions WHERE id = ?",
       )
       .get(id);
     return row === undefined ? undefined : mapSession(row as Record<string, unknown>);
+  }
+
+  /** 返回会话成员，按用户可见顺序排列。 */
+  listSessionMembers(sessionId: string): SessionMemberRow[] {
+    return this.sqlite
+      .prepare(
+        `SELECT sm.session_id, sm.character_id, c.name AS character_name,
+                sm.position, sm.muted, sm.talkativeness, sm.created_at
+           FROM session_members sm
+           JOIN characters c ON c.id = sm.character_id
+          WHERE sm.session_id = ?
+          ORDER BY sm.position, sm.created_at, sm.character_id`,
+      )
+      .all(sessionId)
+      .map((row) => mapSessionMember(row as Record<string, unknown>));
+  }
+
+  /** 新增会话成员；position 与设置值由调用方负责校验。 */
+  insertSessionMember(
+    sessionId: string,
+    characterId: string,
+    position: number,
+    muted = false,
+    talkativeness = 50,
+  ): SessionMemberRow {
+    this.sqlite
+      .prepare(
+        `INSERT INTO session_members
+          (session_id, character_id, position, muted, talkativeness)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(sessionId, characterId, position, muted ? 1 : 0, talkativeness);
+    const row = this.sqlite
+      .prepare(
+        `SELECT sm.session_id, sm.character_id, c.name AS character_name,
+                sm.position, sm.muted, sm.talkativeness, sm.created_at
+           FROM session_members sm
+           JOIN characters c ON c.id = sm.character_id
+          WHERE sm.session_id = ? AND sm.character_id = ?`,
+      )
+      .get(sessionId, characterId);
+    if (row === undefined) {
+      throw new Error("插入会话成员后无法读取成员记录。");
+    }
+    return mapSessionMember(row as Record<string, unknown>);
   }
 
   /** M4：更新会话的组装计划（null = 回落默认）。 */
@@ -187,19 +251,34 @@ export class Repo {
       content: string;
       swipeCandidates: string[];
       status?: MessageStatus;
+      speakerCharacterId?: string | null;
+      speakerName?: string | null;
     },
   ): MessageRow {
     const id = crypto.randomUUID();
     const seq = this.nextSeq(sessionId);
     this.sqlite
       .prepare(
-        "INSERT INTO messages (id, session_id, role, content, status, swipe_candidates, swipe_index, seq) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+        `INSERT INTO messages
+          (id, session_id, role, content, speaker_character_id, speaker_name,
+           status, swipe_candidates, swipe_index, seq)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       )
       .run(
         id,
         sessionId,
         input.role,
         input.content,
+        input.role === "assistant"
+          ? (input.speakerCharacterId ?? this.getSession(sessionId)?.characterId ?? null)
+          : null,
+        input.role === "assistant"
+          ? (input.speakerName ??
+              this.getCharacter(
+                input.speakerCharacterId ?? this.getSession(sessionId)?.characterId ?? "",
+              )?.name ??
+              null)
+          : null,
         input.status ?? "completed",
         JSON.stringify(input.swipeCandidates),
         seq,
@@ -210,7 +289,7 @@ export class Repo {
   listMessages(sessionId: string): MessageRow[] {
     return this.sqlite
       .prepare(
-        "SELECT id, session_id, role, content, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? ORDER BY seq",
+        "SELECT id, session_id, role, content, speaker_character_id, speaker_name, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? ORDER BY seq",
       )
       .all(sessionId)
       .map((row) => mapMessage(row as Record<string, unknown>));
@@ -219,7 +298,7 @@ export class Repo {
   getMessage(sessionId: string, messageId: string): MessageRow | undefined {
     const row = this.sqlite
       .prepare(
-        "SELECT id, session_id, role, content, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? AND id = ?",
+        "SELECT id, session_id, role, content, speaker_character_id, speaker_name, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? AND id = ?",
       )
       .get(sessionId, messageId);
     return row === undefined ? undefined : mapMessage(row as Record<string, unknown>);
@@ -562,6 +641,8 @@ function mapSession(row: Record<string, unknown>): SessionRow {
     id: String(row.id),
     characterId: String(row.character_id),
     title: String(row.title ?? ""),
+    kind: row.kind === "group" ? "group" : "single",
+    groupSettings: parseJsonRecord(row.group_settings),
     planId: row.plan_id === undefined || row.plan_id === null ? null : String(row.plan_id),
     createdAt: String(row.created_at),
   };
@@ -582,12 +663,44 @@ function mapMessage(row: Record<string, unknown>): MessageRow {
     sessionId: String(row.session_id),
     role: row.role === "assistant" || row.role === "system" ? row.role : "user",
     content: String(row.content),
+    speakerCharacterId:
+      row.speaker_character_id === undefined || row.speaker_character_id === null
+        ? null
+        : String(row.speaker_character_id),
+    speakerName:
+      row.speaker_name === undefined || row.speaker_name === null ? null : String(row.speaker_name),
     status: messageStatus(row.status),
     swipeCandidates: candidates,
     swipeIndex: Number(row.swipe_index ?? 0),
     seq: Number(row.seq ?? 0),
     createdAt: String(row.created_at),
   };
+}
+
+function mapSessionMember(row: Record<string, unknown>): SessionMemberRow {
+  return {
+    sessionId: String(row.session_id),
+    characterId: String(row.character_id),
+    characterName: String(row.character_name),
+    position: Number(row.position ?? 0),
+    muted: Number(row.muted ?? 0) === 1,
+    talkativeness: Number(row.talkativeness ?? 50),
+    createdAt: String(row.created_at),
+  };
+}
+
+function parseJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string" || value === "") {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function messageStatus(value: unknown): MessageStatus {

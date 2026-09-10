@@ -242,12 +242,30 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       const session = (await created.json()) as { id: string };
 
       const detail = (await (await app.request(`/api/sessions/${session.id}`)).json()) as {
+        members: Array<{
+          characterId: string;
+          characterName: string;
+          position: number;
+          muted: boolean;
+        }>;
         messages: Array<{ role: string; content: string; swipeCandidates: string[]; seq: number }>;
       };
+      expect(detail.members).toEqual([
+        expect.objectContaining({
+          characterId,
+          characterName: "Aria",
+          position: 0,
+          muted: false,
+        }),
+      ]);
       expect(detail.messages).toHaveLength(1);
       expect(detail.messages[0]?.role).toBe("assistant");
       expect(detail.messages[0]?.content).toBe("欢迎光临。");
       expect(detail.messages[0]?.swipeCandidates).toEqual(["欢迎光临。"]);
+      expect(detail.messages[0]).toMatchObject({
+        speakerCharacterId: characterId,
+        speakerName: "Aria",
+      });
       expect(detail.messages[0]?.seq).toBe(1);
     });
 
