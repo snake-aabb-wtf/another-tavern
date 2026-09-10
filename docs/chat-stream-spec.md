@@ -21,12 +21,14 @@
 `POST /api/chat/stream` 接受以下互斥输入：
 
 - 正常发送：`{ sessionId, content }`。服务端创建一条 `pending` 用户消息。
-- 重试：`{ sessionId, messageId }`。仅允许目标为同一会话中 `failed` 或 `cancelled` 的用户消息；服务端复用该行并改回 `pending`，不得插入重复用户消息。
+- 重试：`{ sessionId, messageId }`。仅允许目标为同一会话中 `failed` 或 `cancelled` 的用户消息；服务端复用该行并改回 `pending`，不得插入重复用户消息。群聊使用 `manual` 策略时还需带回本轮的 `speakerId`，以恢复原发言角色。
 - 重新生成：`{ sessionId, regenerate: true }`。仅追加最后一条 assistant 消息的 swipe 候选，不改变用户消息状态。
 
 流成功完成后，用户消息改为 `completed`；流错误改为 `failed`；客户端断开改为 `cancelled`。
 
 `failed` 与 `cancelled` 消息不进入后续 prompt 组装。重试时该消息先恢复为 `pending`，再作为本轮历史的一部分参与组装。
+
+群聊重新生成未显式指定 `speakerId` 时，服务端沿用目标 assistant 消息的发言角色；取消后重试由客户端带回原请求的 `speakerId`，且不新增用户消息。
 
 ## 3. SSE 事件
 

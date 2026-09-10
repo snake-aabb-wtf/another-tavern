@@ -9,7 +9,7 @@ export interface StreamHandlers {
 
 export interface StreamInput {
   sessionId: string;
-  /** 新消息发送时必填；regenerate / messageId 重试时忽略。 */
+  /** 新消息发送时必填；重试群聊的 manual 发言时可带回原 speakerId。 */
   content?: string;
   /** 重试已失败或已取消的用户消息时传入。 */
   messageId?: string;

@@ -634,6 +634,101 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       expect(secondEvents[0]?.data).toMatchObject({ speakerId: ariaId });
     });
 
+    it("群聊失败后按 speakerId 重试，复用原用户消息", async () => {
+      deps.upstreamFetch = vi.fn(
+        async () => new Response("boom", { status: 500 }),
+      ) as unknown as typeof fetch;
+      const { app, sessionId, lisaId } = await setupGroup();
+
+      const failedResponse = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "请回答", speakerId: lisaId }),
+      });
+      await readSse(failedResponse);
+      const failedDetail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{ id: string; role: string; status: string; content: string }>;
+      };
+      const failedUser = failedDetail.messages.at(-1);
+      expect(failedUser).toMatchObject({ role: "user", content: "请回答", status: "failed" });
+
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["重试成功"], record);
+      const retryResponse = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          messageId: failedUser?.id,
+          speakerId: lisaId,
+        }),
+      });
+      const retryEvents = await readSse(retryResponse);
+      expect(retryEvents.at(-1)?.event).toBe("done");
+
+      const upstreamBody = JSON.parse(String(record.init?.body)) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      expect(
+        upstreamBody.messages.filter((message) => message.content.includes("请回答")),
+      ).toHaveLength(1);
+      const completedDetail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{
+          id: string;
+          role: string;
+          status: string;
+          speakerCharacterId: string | null;
+          speakerName: string | null;
+        }>;
+      };
+      expect(completedDetail.messages.filter((message) => message.role === "user")).toHaveLength(1);
+      expect(completedDetail.messages.at(-1)).toMatchObject({
+        role: "assistant",
+        status: "completed",
+        speakerCharacterId: lisaId,
+        speakerName: "Lisa",
+      });
+    });
+
+    it("群聊重新生成沿用原 speaker 并追加 swipe 候选", async () => {
+      deps.upstreamFetch = fakeUpstream(["第一次回复"]);
+      const { app, sessionId, lisaId } = await setupGroup();
+      await readSse(
+        await app.request("/api/chat/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, content: "问题", speakerId: lisaId }),
+        }),
+      );
+
+      deps.upstreamFetch = fakeUpstream(["第二次回复"]);
+      const regenerated = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, regenerate: true }),
+      });
+      const events = await readSse(regenerated);
+      expect(events[0]?.data).toMatchObject({ speakerId: lisaId, speakerName: "Lisa" });
+      expect(events.at(-1)?.event).toBe("done");
+
+      const detail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{
+          role: string;
+          content: string;
+          swipeCandidates: string[];
+          speakerCharacterId: string | null;
+        }>;
+      };
+      expect(detail.messages.filter((message) => message.role === "user")).toHaveLength(1);
+      const assistant = detail.messages.at(-1);
+      expect(assistant).toMatchObject({
+        role: "assistant",
+        content: "第二次回复",
+        speakerCharacterId: lisaId,
+      });
+      expect(assistant?.swipeCandidates).toEqual(["第一次回复", "第二次回复"]);
+    });
+
     it("同一会话并发生成返回 generation_in_progress", async () => {
       deps.upstreamFetch = fakeUpstream(["回复"]);
       const { app, sessionId, ariaId } = await setupGroup();
@@ -846,6 +941,50 @@ describe("server API（内存 SQLite + fake 上游）", () => {
         await vi.waitFor(() =>
           expect(deps.db.repo.listMessages(sessionId).at(-1)?.status).toBe("cancelled"),
         );
+      } finally {
+        server.close();
+      }
+    });
+
+    it("群聊客户端断开 → 保持 speaker 并将用户消息标为 cancelled", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+        record.url = String(_url);
+        record.init = init;
+        record.signal = init?.signal ?? null;
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        });
+      }) as unknown as typeof fetch;
+      const { app, sessionId, lisaId } = await setupGroup();
+
+      const { serve } = await import("@hono/node-server");
+      const server = serve({ fetch: app.fetch, port: 0 });
+      await vi.waitFor(() => expect(server.address()).not.toBeNull());
+      const address = server.address();
+      expect(address && typeof address === "object").toBe(true);
+      const port = (address as { port: number }).port;
+
+      try {
+        const controller = new AbortController();
+        const response = await fetch(`http://127.0.0.1:${port}/api/chat/stream`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, content: "中断测试", speakerId: lisaId }),
+          signal: controller.signal,
+        });
+        const reader = response.body?.getReader();
+        await reader?.read();
+
+        controller.abort();
+        await vi.waitFor(() => expect(record.signal?.aborted).toBe(true));
+        await vi.waitFor(() => {
+          const last = deps.db.repo.listMessages(sessionId).at(-1);
+          expect(last?.status).toBe("cancelled");
+          expect(last?.role).toBe("user");
+        });
       } finally {
         server.close();
       }
