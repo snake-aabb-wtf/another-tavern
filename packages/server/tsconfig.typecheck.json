@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@another-tavern/engine": ["../engine/src/index.ts"],
+      "@another-tavern/sse": ["../sse/src/index.ts"]
+    }
+  },
+  "include": ["src", "../engine/src/cards/png-shims.d.ts"]
+}

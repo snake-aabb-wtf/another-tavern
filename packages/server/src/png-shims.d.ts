@@ -5,6 +5,10 @@
 declare module "png-chunk-text" {
   namespace pngChunkText {
     function encode(keyword: string, content: string): { name: "tEXt"; data: Uint8Array };
+    function decode(chunk: { name: string; data: Uint8Array } | Uint8Array): {
+      keyword: string;
+      text: string;
+    };
   }
   export = pngChunkText;
 }
