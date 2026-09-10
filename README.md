@@ -40,7 +40,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 当前状态
 
-当前预览版本：`v0.3.0-beta.1`。本版本包含群聊核心链路，自动多轮仍未实现。
+当前预览版本：`v0.3.0-beta.2`。本版本包含群聊核心链路，自动多轮仍未实现。
 
 - **M0** 脚手架：pnpm workspace + 三包骨架 + 工具链（TypeScript strict / vitest / eslint / prettier）✅
 - **M1** 规格文档：`docs/` 三份规范，是实现的**唯一依据**（见下表）✅

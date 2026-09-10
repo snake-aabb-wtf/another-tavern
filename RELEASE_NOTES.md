@@ -1,4 +1,4 @@
-# Another Tavern v0.3.0-beta.1
+# Another Tavern v0.3.0-beta.2
 
 这是群聊核心链路的预览版本。Another Tavern 是开源、自托管优先的 AI 角色扮演框架，定位为 SillyTavern 的平替；核心是把角色卡、用户人设、世界书和聊天历史组装成最终请求。
 
@@ -38,7 +38,7 @@
 
 | 产物                                      | 适用                                      | 用法                                           |
 | ----------------------------------------- | ----------------------------------------- | ---------------------------------------------- |
-| `another-tavern-v0.3.0-beta.1-node22.zip` | 已安装 Node ≥ 22.5 的 Windows/Linux/macOS | 解压后运行 `start.cmd`（Windows）或 `start.sh` |
+| `another-tavern-v0.3.0-beta.2-node22.zip` | 已安装 Node ≥ 22.5 的 Windows/Linux/macOS | 解压后运行 `start.cmd`（Windows）或 `start.sh` |
 | Docker 镜像 / Dockerfile                  | 有 Docker 的环境                          | 见 README「Docker」节                          |
 
 ## 快速开始（源码）

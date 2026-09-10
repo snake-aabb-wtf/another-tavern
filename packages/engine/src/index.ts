@@ -8,7 +8,7 @@
  * 本文件是唯一公共出口；内部模块（pick/schema/macros 等）不得外泄。
  */
 
-export const ENGINE_VERSION = "0.3.0-beta.1";
+export const ENGINE_VERSION = "0.3.0-beta.2";
 
 // —— 角色卡解析（cards-spec）——
 export { parseCharacterCardJson } from "./cards/json.js";
