@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel --stream run dev",
     "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "test": "pnpm -r run test",
     "lint": "eslint .",
     "format": "prettier --write .",
