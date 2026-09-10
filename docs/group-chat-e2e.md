@@ -17,7 +17,7 @@ pnpm exec playwright install chromium
 pnpm e2e
 ```
 
-CI 会自动安装 Chromium，并把失败时的截图、视频和 trace 上传为 workflow artifact；Release job 依赖该浏览器 E2E 通过后才会继续。
+GitHub Actions 当前只执行类型检查、静态检查、构建和单元测试；浏览器 E2E 暂不作为远端门禁，仍可在本地手动执行。
 
 群聊相关验收覆盖：
 
