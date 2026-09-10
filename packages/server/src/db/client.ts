@@ -42,6 +42,13 @@ export interface SessionMemberRow {
   createdAt: string;
 }
 
+export interface SessionMemberInput {
+  characterId: string;
+  position: number;
+  muted?: boolean;
+  talkativeness?: number;
+}
+
 export interface MessageRow {
   id: string;
   sessionId: string;
@@ -158,6 +165,44 @@ export class Repo {
     return this.getSession(id) as SessionRow;
   }
 
+  /** 创建群聊会话，并按传入顺序写入全部成员。 */
+  insertGroupSession(
+    id: string,
+    characterId: string,
+    title: string,
+    planId: string | null,
+    groupSettings: Record<string, unknown>,
+    members: readonly SessionMemberInput[],
+  ): SessionRow {
+    this.sqlite.exec("BEGIN");
+    try {
+      this.sqlite
+        .prepare(
+          "INSERT INTO chat_sessions (id, character_id, title, kind, group_settings, plan_id) VALUES (?, ?, ?, 'group', ?, ?)",
+        )
+        .run(id, characterId, title, JSON.stringify(groupSettings), planId);
+      const insert = this.sqlite.prepare(
+        `INSERT INTO session_members
+          (session_id, character_id, position, muted, talkativeness)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      for (const member of members) {
+        insert.run(
+          id,
+          member.characterId,
+          member.position,
+          member.muted === true ? 1 : 0,
+          member.talkativeness ?? 50,
+        );
+      }
+      this.sqlite.exec("COMMIT");
+    } catch (error) {
+      this.sqlite.exec("ROLLBACK");
+      throw error;
+    }
+    return this.getSession(id) as SessionRow;
+  }
+
   listSessions(): SessionRow[] {
     return this.sqlite
       .prepare(
@@ -219,6 +264,50 @@ export class Repo {
       throw new Error("插入会话成员后无法读取成员记录。");
     }
     return mapSessionMember(row as Record<string, unknown>);
+  }
+
+  /** 全量替换群聊成员，并把首位成员同步到兼容字段 character_id。 */
+  replaceSessionMembers(sessionId: string, members: readonly SessionMemberInput[]): boolean {
+    const first = members[0];
+    if (first === undefined) {
+      return false;
+    }
+    this.sqlite.exec("BEGIN");
+    try {
+      this.sqlite.prepare("DELETE FROM session_members WHERE session_id = ?").run(sessionId);
+      const insert = this.sqlite.prepare(
+        `INSERT INTO session_members
+          (session_id, character_id, position, muted, talkativeness)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      for (const member of members) {
+        insert.run(
+          sessionId,
+          member.characterId,
+          member.position,
+          member.muted === true ? 1 : 0,
+          member.talkativeness ?? 50,
+        );
+      }
+      const changed =
+        this.sqlite
+          .prepare("UPDATE chat_sessions SET character_id = ? WHERE id = ?")
+          .run(first.characterId, sessionId).changes > 0;
+      this.sqlite.exec("COMMIT");
+      return changed;
+    } catch (error) {
+      this.sqlite.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  /** 更新群聊配置 JSON；未知字段由调用方保留后传入。 */
+  setGroupSettings(id: string, settings: Record<string, unknown>): boolean {
+    return (
+      this.sqlite
+        .prepare("UPDATE chat_sessions SET group_settings = ? WHERE id = ?")
+        .run(JSON.stringify(settings), id).changes > 0
+    );
   }
 
   /** M4：更新会话的组装计划（null = 回落默认）。 */

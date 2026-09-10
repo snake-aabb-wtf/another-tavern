@@ -13,9 +13,12 @@ import type {
 import {
   AssemblyError,
   assemblePrompt,
+  chooseNextSpeaker,
   normalizePlan,
+  SpeakerSelectionError,
   tokenizerForModel,
 } from "@another-tavern/engine";
+import type { SpeakerHistoryItem, SpeakerMember, SpeakerStrategy } from "@another-tavern/engine";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
@@ -48,6 +51,16 @@ const SAMPLING_WHITELIST = [
   "seed",
 ] as const;
 
+const activeGenerations = new Set<string>();
+
+function groupReplyStrategy(settings: Record<string, unknown> | null): "manual" | "list" {
+  return settings?.replyStrategy === "list" ? "list" : "manual";
+}
+
+function groupScenarioOverride(settings: Record<string, unknown> | null): string | null {
+  return typeof settings?.scenarioOverride === "string" ? settings.scenarioOverride : null;
+}
+
 function allowedSampling(sampling: Record<string, unknown>): Record<string, unknown> {
   const extra: Record<string, unknown> = {};
   for (const key of SAMPLING_WHITELIST) {
@@ -79,12 +92,21 @@ export function chatRoutes(deps: AppDeps): Hono {
 
   app.post("/api/chat/stream", async (c) => {
     const body = await c.req
-      .json<{ sessionId?: unknown; content?: unknown; messageId?: unknown; regenerate?: unknown }>()
+      .json<{
+        sessionId?: unknown;
+        content?: unknown;
+        messageId?: unknown;
+        regenerate?: unknown;
+        speakerId?: unknown;
+        force?: unknown;
+      }>()
       .catch(() => ({}) as Record<string, never>);
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
     const regenerate = body.regenerate === true;
     const content = typeof body.content === "string" ? body.content : "";
     const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    const requestedSpeakerId = typeof body.speakerId === "string" ? body.speakerId : "";
+    const force = body.force === true;
     if (
       sessionId === "" ||
       (!regenerate && content === "" && messageId === "") ||
@@ -105,10 +127,6 @@ export function chatRoutes(deps: AppDeps): Hono {
     if (session === undefined) {
       return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
     }
-    const character = deps.db.repo.getCharacter(session.characterId);
-    if (character === undefined) {
-      return c.json({ error: { code: "not_found", message: "会话绑定的角色卡不存在。" } }, 404);
-    }
     const settings = deps.db.repo.getSettings();
     if (settings.baseUrl === "" || settings.model === "") {
       return c.json(
@@ -120,6 +138,26 @@ export function chatRoutes(deps: AppDeps): Hono {
         },
         400,
       );
+    }
+
+    const sessionMembers = deps.db.repo.listSessionMembers(sessionId);
+    if (sessionMembers.length === 0) {
+      return c.json(
+        { error: { code: "no_available_speaker", message: "会话没有可用成员。" } },
+        400,
+      );
+    }
+
+    const memberCards = new Map<string, { name: string; card: CharacterCard }>();
+    for (const member of sessionMembers) {
+      const row = deps.db.repo.getCharacter(member.characterId);
+      if (row === undefined) {
+        return c.json({ error: { code: "not_found", message: "会话成员角色卡不存在。" } }, 404);
+      }
+      memberCards.set(member.characterId, {
+        name: row.name,
+        card: JSON.parse(row.data) as CharacterCard,
+      });
     }
 
     // M5 regenerate：目标 = 最后一条 assistant 消息；新回复作为其 swipe 候选追加
@@ -141,6 +179,60 @@ export function chatRoutes(deps: AppDeps): Hono {
       }
     }
 
+    let activeSpeakerId = session.characterId;
+    let speakerReason: SpeakerStrategy = "manual";
+    if (session.kind === "group") {
+      const regeneratedSpeakerId =
+        regenerateTarget?.speakerCharacterId !== null
+          ? (regenerateTarget?.speakerCharacterId ?? "")
+          : "";
+      const speakerId = requestedSpeakerId !== "" ? requestedSpeakerId : regeneratedSpeakerId;
+      const preservingRegeneratedSpeaker = requestedSpeakerId === "" && regeneratedSpeakerId !== "";
+      speakerReason =
+        speakerId !== ""
+          ? force || preservingRegeneratedSpeaker
+            ? "force"
+            : "manual"
+          : groupReplyStrategy(session.groupSettings);
+      const speakerMembers: SpeakerMember[] = sessionMembers.map((member) => ({
+        characterId: member.characterId,
+        position: member.position,
+        muted: member.muted,
+      }));
+      const speakerHistory: SpeakerHistoryItem[] = allMessages.map((message) => ({
+        role: message.role === "assistant" ? "assistant" : "user",
+        ...(message.speakerCharacterId !== null ? { speakerId: message.speakerCharacterId } : {}),
+      }));
+      try {
+        activeSpeakerId = chooseNextSpeaker({
+          strategy: speakerReason,
+          members: speakerMembers,
+          history: speakerHistory,
+          ...(speakerId !== "" ? { speakerId } : {}),
+        }).characterId;
+      } catch (error) {
+        if (error instanceof SpeakerSelectionError) {
+          return c.json({ error: { code: error.code, message: error.message } }, 400);
+        }
+        throw error;
+      }
+    }
+    const activeCharacter = deps.db.repo.getCharacter(activeSpeakerId);
+    if (activeCharacter === undefined) {
+      return c.json({ error: { code: "not_found", message: "当前发言角色卡不存在。" } }, 404);
+    }
+    const activeCard =
+      memberCards.get(activeSpeakerId)?.card ?? (JSON.parse(activeCharacter.data) as CharacterCard);
+    const activeSpeakerName = memberCards.get(activeSpeakerId)?.name ?? activeCharacter.name;
+
+    if (activeGenerations.has(sessionId)) {
+      return c.json(
+        { error: { code: "generation_in_progress", message: "该会话已有生成任务进行中。" } },
+        409,
+      );
+    }
+    activeGenerations.add(sessionId);
+
     // 正常模式：新消息先以 pending 落库；重试复用 failed/cancelled 消息，避免重复插入。
     let userMessage: MessageRow | null = null;
     if (!regenerate) {
@@ -151,6 +243,7 @@ export function chatRoutes(deps: AppDeps): Hono {
           existing.role !== "user" ||
           (existing.status !== "failed" && existing.status !== "cancelled")
         ) {
+          activeGenerations.delete(sessionId);
           return c.json(
             {
               error: {
@@ -172,7 +265,6 @@ export function chatRoutes(deps: AppDeps): Hono {
         });
       }
     }
-    const card = JSON.parse(character.data) as CharacterCard;
 
     // M4/M6：会话组装计划 → 全局默认计划 → 引擎内置默认（三级 fallback）
     let plan;
@@ -185,6 +277,7 @@ export function chatRoutes(deps: AppDeps): Hono {
           if (userMessage !== null) {
             deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
           }
+          activeGenerations.delete(sessionId);
           return c.json(
             {
               error: {
@@ -201,14 +294,14 @@ export function chatRoutes(deps: AppDeps): Hono {
     }
 
     // M4：三源世界书——卡内书 + 角色挂载书 + 全局书（按 id 去重，先到先得）
-    const linkedIds = deps.db.repo.listCharacterLorebookIds(session.characterId);
+    const linkedIds = deps.db.repo.listCharacterLorebookIds(activeCharacter.id);
     const linkedBooks = linkedIds
       .map((id) => deps.db.repo.getLorebook(id))
       .filter((book): book is NonNullable<typeof book> => book !== undefined);
     const globalBooks = deps.db.repo.listGlobalLorebooks();
     const books: WorldInfoBook[] = [];
-    if (card.characterBook !== null) {
-      books.push(card.characterBook);
+    if (activeCard.characterBook !== null) {
+      books.push(activeCard.characterBook);
     }
     for (const row of [...linkedBooks, ...globalBooks]) {
       if (books.some((b) => b.id === row.id)) {
@@ -232,14 +325,35 @@ export function chatRoutes(deps: AppDeps): Hono {
     let result: AssemblyResult;
     try {
       result = assemblePrompt({
-        card,
+        card: activeCard,
+        ...(session.kind === "group"
+          ? {
+              group: {
+                activeCharacterId: activeSpeakerId,
+                participants: sessionMembers.map((member) => ({
+                  id: member.characterId,
+                  card: memberCards.get(member.characterId)!.card,
+                  muted: member.muted,
+                })),
+                generationMode: "swap" as const,
+                scenarioOverride: groupScenarioOverride(session.groupSettings),
+              },
+            }
+          : {}),
         ...(plan !== undefined ? { plan } : {}),
         persona: { name: personaName, description: "" },
         history: historyRows.map((m) => ({
           id: m.id,
           role: m.role === "assistant" ? "assistant" : "user",
-          name: m.role === "assistant" ? card.name : personaName,
+          name:
+            m.role === "assistant"
+              ? (m.speakerName ??
+                (m.speakerCharacterId === null
+                  ? activeSpeakerName
+                  : (memberCards.get(m.speakerCharacterId)?.name ?? activeSpeakerName)))
+              : personaName,
           content: m.content,
+          ...(m.speakerCharacterId !== null ? { speakerId: m.speakerCharacterId } : {}),
         })),
         greeting: null, // greeting 已作为首条 assistant 消息入库
         globalPrompts: { main: "", postHistory: "" },
@@ -255,6 +369,7 @@ export function chatRoutes(deps: AppDeps): Hono {
       if (userMessage !== null) {
         deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
       }
+      activeGenerations.delete(sessionId);
       const message = error instanceof Error ? error.message : String(error);
       return c.json(
         {
@@ -274,70 +389,77 @@ export function chatRoutes(deps: AppDeps): Hono {
     const controller = new AbortController();
 
     return streamSSE(c, async (stream) => {
-      stream.onAbort(() => controller.abort());
-      await stream.writeSSE({
-        event: "meta",
-        data: JSON.stringify({
-          sessionId,
-          userMessageId: userMessage?.id ?? null,
-          tokensTotal: result.stats.tokensTotal,
-        }),
-      });
-
-      let accumulated = "";
       try {
-        for await (const delta of streamUpstreamCompletion(
-          {
-            baseUrl: settings.baseUrl,
-            apiKey: settings.apiKey,
-            model: settings.model,
-            messages: result.messages,
-            signal: controller.signal,
-            extraBody: allowedSampling(settings.sampling),
-          },
-          fetchImpl,
-        )) {
-          accumulated += delta;
-          await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: delta }) });
-        }
-        const saved =
-          regenerateTarget !== null
-            ? deps.db.repo.appendSwipeCandidate(sessionId, regenerateTarget.id, accumulated)
-            : deps.db.repo.insertMessage(sessionId, {
-                role: "assistant",
-                content: accumulated,
-                swipeCandidates: [accumulated],
-              });
-        if (saved === undefined) {
-          throw new Error("保存回复失败：目标消息不存在。");
-        }
-        if (userMessage !== null) {
-          deps.db.repo.setMessageStatus(sessionId, userMessage.id, "completed");
-        }
+        stream.onAbort(() => controller.abort());
         await stream.writeSSE({
-          event: "done",
-          data: JSON.stringify({ messageId: saved.id, content: accumulated }),
+          event: "meta",
+          data: JSON.stringify({
+            sessionId,
+            userMessageId: userMessage?.id ?? null,
+            speakerId: activeSpeakerId,
+            speakerName: activeSpeakerName,
+            tokensTotal: result.stats.tokensTotal,
+          }),
         });
-      } catch (error) {
-        if (controller.signal.aborted) {
-          if (userMessage !== null) {
-            deps.db.repo.setMessageStatus(sessionId, userMessage.id, "cancelled");
+        let accumulated = "";
+        try {
+          for await (const delta of streamUpstreamCompletion(
+            {
+              baseUrl: settings.baseUrl,
+              apiKey: settings.apiKey,
+              model: settings.model,
+              messages: result.messages,
+              signal: controller.signal,
+              extraBody: allowedSampling(settings.sampling),
+            },
+            fetchImpl,
+          )) {
+            accumulated += delta;
+            await stream.writeSSE({ event: "delta", data: JSON.stringify({ text: delta }) });
           }
-          return;
+          const saved =
+            regenerateTarget !== null
+              ? deps.db.repo.appendSwipeCandidate(sessionId, regenerateTarget.id, accumulated)
+              : deps.db.repo.insertMessage(sessionId, {
+                  role: "assistant",
+                  content: accumulated,
+                  swipeCandidates: [accumulated],
+                  speakerCharacterId: activeSpeakerId,
+                  speakerName: activeSpeakerName,
+                });
+          if (saved === undefined) {
+            throw new Error("保存回复失败：目标消息不存在。");
+          }
+          if (userMessage !== null) {
+            deps.db.repo.setMessageStatus(sessionId, userMessage.id, "completed");
+          }
+          await stream.writeSSE({
+            event: "done",
+            data: JSON.stringify({ messageId: saved.id, content: accumulated }),
+          });
+        } catch (error) {
+          if (controller.signal.aborted) {
+            if (userMessage !== null) {
+              deps.db.repo.setMessageStatus(sessionId, userMessage.id, "cancelled");
+            }
+            return;
+          }
+          if (userMessage !== null) {
+            deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
+          }
+          const message =
+            error instanceof UpstreamError
+              ? `上游错误（${error.status}）：${error.detail.slice(0, 200)}`
+              : error instanceof Error
+                ? error.message
+                : String(error);
+          await stream.writeSSE({
+            event: "error",
+            data: JSON.stringify({ code: "upstream_failed", message }),
+          });
         }
-        if (userMessage !== null) {
-          deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
-        }
-        const message =
-          error instanceof UpstreamError
-            ? `上游错误（${error.status}）：${error.detail.slice(0, 200)}`
-            : error instanceof Error
-              ? error.message
-              : String(error);
-        await stream.writeSSE({
-          event: "error",
-          data: JSON.stringify({ code: "upstream_failed", message }),
-        });
+      } finally {
+        activeGenerations.delete(sessionId);
       }
     });
   });

@@ -2,7 +2,7 @@
 
 | 项目     | 内容                                                                |
 | -------- | ------------------------------------------------------------------- |
-| 状态     | 第一阶段规格提案，进入实现前须确认                                  |
+| 状态     | 第一阶段规格提案，数据地基、引擎与 server 发言调度已实现            |
 | 目标     | 在不破坏现有单聊数据和 Prompt 行为的前提下，支持多角色共享会话      |
 | 适用范围 | `packages/engine`、`packages/server`、`packages/web` 的群聊相关实现 |
 | 设计基线 | 现有单聊消息状态、SSE 契约、组装计划和“烛下酒馆” UI 规范            |
@@ -263,6 +263,20 @@ PUT  /api/sessions/:id/group-settings
 
 第一阶段可以使用全量替换请求，避免为成员排序、静音、添加、删除设计过多独立端点。提交前服务端必须重新校验成员数量、重复项和角色存在性。
 
+成员全量替换请求形态：
+
+```json
+{
+  "members": [
+    { "characterId": "aria", "muted": false, "talkativeness": 50 },
+    { "characterId": "lisa", "muted": true, "talkativeness": 30 }
+  ]
+}
+```
+
+数组顺序即 `position`；`muted` 缺省为 `false`，`talkativeness` 缺省为 `50`。
+`group-settings` 接受部分配置对象，未知字段必须和原配置一起保留。
+
 ### 8.3 流式生成
 
 单聊请求保持兼容：
@@ -283,6 +297,13 @@ PUT  /api/sessions/:id/group-settings
   "speakerId": "aria"
 }
 ```
+
+HTTP 层使用可选 `force` 区分手动选择和强制发言：
+
+- 有 `speakerId` 且 `force` 缺省或为 `false`：使用 `manual`，静音角色会返回 `speaker_muted`。
+- 有 `speakerId` 且 `force: true`：使用 `force`，允许选择静音角色。
+- 没有 `speakerId`：按 `group_settings.replyStrategy` 使用 `manual` 或 `list`。
+- `regenerate` 未指定角色时沿用目标 assistant 消息的发言者。
 
 群聊生成时，`speakerId` 必须属于会话成员。服务端在 `meta` 事件中返回：
 

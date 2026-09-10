@@ -14,6 +14,9 @@ export interface StreamInput {
   /** 重试已失败或已取消的用户消息时传入。 */
   messageId?: string;
   regenerate?: boolean;
+  /** 群聊手动指定当前发言角色；force=true 时允许静音角色。 */
+  speakerId?: string;
+  force?: boolean;
 }
 
 /** 发起流式对话；返回完整回复文本。 */

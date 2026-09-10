@@ -50,14 +50,14 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 规格文档（docs/）
 
-| 文档                                                   | 内容                                                                  | 状态     |
-| ------------------------------------------------------ | --------------------------------------------------------------------- | -------- |
-| [docs/cards-spec.md](./docs/cards-spec.md)             | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略         | 评审中   |
-| [docs/prompt-assembly.md](./docs/prompt-assembly.md)   | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例   | 评审中   |
-| [docs/world-info-spec.md](./docs/world-info-spec.md)   | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口           | 评审中   |
-| [docs/settings-spec.md](./docs/settings-spec.md)       | 设置与采样参数规范：资源模型、采样 7 键契约、发送白名单、API 与 UI    | 已实现   |
-| [docs/chat-stream-spec.md](./docs/chat-stream-spec.md) | 流式聊天与消息状态：SSE 事件、失败/取消、原消息重试与 prompt 历史规则 | 已实现   |
-| [docs/group-chat-spec.md](./docs/group-chat-spec.md)   | 群聊第一阶段提案：成员模型、发言调度、Swap Prompt、SSE、迁移与测试    | 第一阶段 |
+| 文档                                                   | 内容                                                                  | 状态   |
+| ------------------------------------------------------ | --------------------------------------------------------------------- | ------ |
+| [docs/cards-spec.md](./docs/cards-spec.md)             | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略         | 评审中 |
+| [docs/prompt-assembly.md](./docs/prompt-assembly.md)   | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例   | 评审中 |
+| [docs/world-info-spec.md](./docs/world-info-spec.md)   | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口           | 评审中 |
+| [docs/settings-spec.md](./docs/settings-spec.md)       | 设置与采样参数规范：资源模型、采样 7 键契约、发送白名单、API 与 UI    | 已实现 |
+| [docs/chat-stream-spec.md](./docs/chat-stream-spec.md) | 流式聊天与消息状态：SSE 事件、失败/取消、原消息重试与 prompt 历史规则 | 已实现 |
+| [docs/group-chat-spec.md](./docs/group-chat-spec.md)   | 群聊第一阶段提案：成员模型、发言调度、Swap Prompt、SSE、迁移与测试    | 实施中 |
 
 ## 架构分层
 
@@ -141,7 +141,7 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 
 本仓库与 ST 的兼容仅限**文件格式**（V2 角色卡、预设 JSON、世界书 JSON 的导入）；不包含任何 ST 源码。当前差异：
 
-- 暂不支持：群聊实现（第一阶段规格见 [docs/group-chat-spec.md](./docs/group-chat-spec.md)）、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率、Prompt Manager 拖拽（用上下移按钮替代）
+- 暂不支持：群聊完整 UI 与自动多轮（第一阶段已完成数据地基、引擎调度和 server 生成链路，规格见 [docs/group-chat-spec.md](./docs/group-chat-spec.md)）、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率、Prompt Manager 拖拽（用上下移按钮替代）
 - 世界书插入位置仅实现 beforeChar / afterChar / atDepth（其余可选但不注入，字段保留）
 - 组装段序由「组装计划」编排（含上移/下移与自定义槽文本），非 ST 的自由拖拽列表
 - 完整对照见 `docs/world-info-spec.md` §9 与 `docs/cards-spec.md` §1（不支持格式清单）

@@ -64,6 +64,18 @@ const SAMPLE_CARD = JSON.stringify({
   },
 });
 
+function namedSampleCard(name: string): string {
+  if (name === "Aria") {
+    return SAMPLE_CARD;
+  }
+  const card = JSON.parse(SAMPLE_CARD) as {
+    data: { name: string; first_mes: string };
+  };
+  card.data.name = name;
+  card.data.first_mes = `${name} 欢迎光临。`;
+  return JSON.stringify(card);
+}
+
 interface RecordedFetch {
   url: string;
   init: RequestInit | undefined;
@@ -220,9 +232,12 @@ describe("server API（内存 SQLite + fake 上游）", () => {
   });
 
   describe("sessions / messages", () => {
-    async function importCard(): Promise<string> {
+    async function importCard(name = "Aria"): Promise<string> {
       const form = new FormData();
-      form.append("file", new File([SAMPLE_CARD], "card.png", { type: "image/png" }));
+      form.append(
+        "file",
+        new File([namedSampleCard(name)], `${name}.json`, { type: "application/json" }),
+      );
       const res = await createApp(deps).request("/api/characters/import", {
         method: "POST",
         body: form,
@@ -300,6 +315,81 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       expect(gone.status).toBe(404);
     });
 
+    it("创建群聊并支持成员排序、静音与群聊设置", async () => {
+      const app = createApp(deps);
+      const ariaId = await importCard("Aria");
+      const lisaId = await importCard("Lisa");
+      const created = await app.request("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "group",
+          title: "旅行者小队",
+          characterIds: [ariaId, lisaId],
+        }),
+      });
+      expect(created.status).toBe(201);
+      const session = (await created.json()) as {
+        id: string;
+        kind: string;
+        groupSettings: Record<string, unknown>;
+      };
+      expect(session.kind).toBe("group");
+      expect(session.groupSettings).toMatchObject({
+        replyStrategy: "manual",
+        generationMode: "swap",
+      });
+
+      const replace = await app.request(`/api/sessions/${session.id}/members`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          members: [
+            { characterId: lisaId, muted: true, talkativeness: 20 },
+            { characterId: ariaId, muted: false, talkativeness: 80 },
+          ],
+        }),
+      });
+      expect(replace.status).toBe(200);
+      expect(await replace.json()).toMatchObject({
+        members: [
+          { characterId: lisaId, position: 0, muted: true, talkativeness: 20 },
+          { characterId: ariaId, position: 1, muted: false, talkativeness: 80 },
+        ],
+      });
+
+      const settings = await app.request(`/api/sessions/${session.id}/group-settings`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ replyStrategy: "list", scenarioOverride: "调查神殿" }),
+      });
+      expect(settings.status).toBe(200);
+      expect(await settings.json()).toMatchObject({
+        groupSettings: { replyStrategy: "list", scenarioOverride: "调查神殿" },
+      });
+    });
+
+    it("群聊创建拒绝重复角色和不存在角色", async () => {
+      const app = createApp(deps);
+      const ariaId = await importCard("Aria");
+      const duplicate = await app.request("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "group", characterIds: [ariaId, ariaId] }),
+      });
+      expect(duplicate.status).toBe(400);
+      expect(((await duplicate.json()) as { error: { code: string } }).error.code).toBe(
+        "duplicate_character",
+      );
+
+      const missing = await app.request("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "group", characterIds: [ariaId, "missing"] }),
+      });
+      expect(missing.status).toBe(404);
+    });
+
     it("不存在的角色卡 → 404；缺 characterId → 400", async () => {
       const app = createApp(deps);
       const missing = await app.request("/api/sessions", {
@@ -348,6 +438,71 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       return { app, sessionId };
     }
 
+    async function setupGroup(): Promise<{
+      app: ReturnType<typeof createApp>;
+      sessionId: string;
+      ariaId: string;
+      lisaId: string;
+    }> {
+      const app = createApp(deps);
+      const importNamed = async (name: string): Promise<string> => {
+        const form = new FormData();
+        form.append(
+          "file",
+          new File([namedSampleCard(name)], `${name}.json`, { type: "application/json" }),
+        );
+        const response = await app.request("/api/characters/import", {
+          method: "POST",
+          body: form,
+        });
+        return ((await response.json()) as { id: string }).id;
+      };
+      const ariaId = await importNamed("Aria");
+      const lisaId = await importNamed("Lisa");
+      await app.request("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          baseUrl: "http://fake.local/v1",
+          apiKey: "sk-test",
+          model: "test-model",
+        }),
+      });
+      const created = await app.request("/api/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "group", title: "小队", characterIds: [ariaId, lisaId] }),
+      });
+      const sessionId = ((await created.json()) as { id: string }).id;
+      return { app, sessionId, ariaId, lisaId };
+    }
+
+    async function setGroupMembers(
+      app: ReturnType<typeof createApp>,
+      sessionId: string,
+      members: Array<{ characterId: string; muted?: boolean }>,
+    ): Promise<void> {
+      const response = await app.request(`/api/sessions/${sessionId}/members`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ members }),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    async function setGroupStrategy(
+      app: ReturnType<typeof createApp>,
+      sessionId: string,
+      replyStrategy: "manual" | "list",
+    ): Promise<void> {
+      const response = await app.request(`/api/sessions/${sessionId}/group-settings`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ replyStrategy }),
+      });
+      expect(response.status).toBe(200);
+    }
+
     it("流式转发 delta 并在结束后落库 assistant 消息", async () => {
       const record: RecordedFetch = { url: "", init: undefined, signal: null };
       deps.upstreamFetch = fakeUpstream(["你好", "，", "旅人"], record);
@@ -389,6 +544,117 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       };
       expect(upstreamBody.messages[0]?.role).toBe("system");
       expect(upstreamBody.messages.at(-1)?.role).toBe("user");
+    });
+
+    it("群聊手动选择注入当前身份，并把 speaker 写入 SSE 与消息", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["Lisa 的回复"], record);
+      const { app, sessionId, lisaId } = await setupGroup();
+
+      const res = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "你们好", speakerId: lisaId }),
+      });
+      expect(res.status).toBe(200);
+      const events = await readSse(res);
+      expect(events[0]?.data).toMatchObject({ speakerId: lisaId, speakerName: "Lisa" });
+
+      const upstreamBody = JSON.parse(String(record.init?.body)) as {
+        messages: Array<{ role: string; content: string }>;
+      };
+      expect(upstreamBody.messages[0]?.content).toContain("You are currently speaking as Lisa.");
+      expect(upstreamBody.messages.some((message) => message.content === "Aria: 欢迎光临。")).toBe(
+        true,
+      );
+
+      const detail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{
+          role: string;
+          content: string;
+          speakerCharacterId: string | null;
+          speakerName: string | null;
+        }>;
+      };
+      expect(detail.messages.at(-1)).toMatchObject({
+        role: "assistant",
+        content: "Lisa 的回复",
+        speakerCharacterId: lisaId,
+        speakerName: "Lisa",
+      });
+    });
+
+    it("群聊静音角色需要 force 才能发言", async () => {
+      const { app, sessionId, ariaId, lisaId } = await setupGroup();
+      await setGroupMembers(app, sessionId, [
+        { characterId: ariaId, muted: false },
+        { characterId: lisaId, muted: true },
+      ]);
+
+      const rejected = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "请回答", speakerId: lisaId }),
+      });
+      expect(rejected.status).toBe(400);
+      expect(((await rejected.json()) as { error: { code: string } }).error.code).toBe(
+        "speaker_muted",
+      );
+
+      deps.upstreamFetch = fakeUpstream(["强制回复"]);
+      const forced = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "请强制回答", speakerId: lisaId, force: true }),
+      });
+      expect(forced.status).toBe(200);
+      expect((await readSse(forced)).at(-1)?.event).toBe("done");
+    });
+
+    it("群聊 list 策略按成员顺序轮换发言者", async () => {
+      const { app, sessionId, ariaId, lisaId } = await setupGroup();
+      await setGroupStrategy(app, sessionId, "list");
+
+      deps.upstreamFetch = fakeUpstream(["Lisa 回复"]);
+      const first = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "第一问" }),
+      });
+      const firstEvents = await readSse(first);
+      expect(firstEvents[0]?.data).toMatchObject({ speakerId: lisaId });
+
+      deps.upstreamFetch = fakeUpstream(["Aria 回复"]);
+      const second = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "第二问" }),
+      });
+      const secondEvents = await readSse(second);
+      expect(secondEvents[0]?.data).toMatchObject({ speakerId: ariaId });
+    });
+
+    it("同一会话并发生成返回 generation_in_progress", async () => {
+      deps.upstreamFetch = fakeUpstream(["回复"]);
+      const { app, sessionId, ariaId } = await setupGroup();
+
+      const first = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "第一条", speakerId: ariaId }),
+      });
+      expect(first.status).toBe(200);
+
+      const second = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "第二条", speakerId: ariaId }),
+      });
+      expect(second.status).toBe(409);
+      expect(((await second.json()) as { error: { code: string } }).error.code).toBe(
+        "generation_in_progress",
+      );
+      await readSse(first);
     });
 
     it("sampling 白名单内的 seed → 上游请求体带 seed", async () => {
