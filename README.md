@@ -40,6 +40,8 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 当前状态
 
+当前预览版本：`v0.3.0-beta.1`。本版本包含群聊核心链路，自动多轮仍未实现。
+
 - **M0** 脚手架：pnpm workspace + 三包骨架 + 工具链（TypeScript strict / vitest / eslint / prettier）✅
 - **M1** 规格文档：`docs/` 三份规范，是实现的**唯一依据**（见下表）✅
 - **M2** 引擎：角色卡解析、世界书引擎、tokenizer、Prompt 组装器（`packages/engine`）✅
@@ -86,12 +88,12 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 各包职责
 
-| 包                | 职责                                                                                                                            | 当前状态                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `packages/engine` | 无头引擎：角色卡（ST V2，PNG 内嵌 JSON）解析、世界书引擎、Prompt 组装器、tokenizer 接口。零 UI 依赖、不发网络请求、不碰数据库。 | M2 完成：104 tests + golden files                                        |
-| `packages/sse`    | 纯 SSE 文本解析：LF/CRLF、跨 chunk、多行 `data:` 与 EOF 刷出；供 web 与 server 复用。                                           | M8：共享协议解析                                                         |
-| `packages/server` | Hono API + SSE 流式 + SQLite 存储（Drizzle ORM），调用 engine。                                                                 | M3 完成：卡导入 / 会话消息 CRUD / settings / `POST /api/chat/stream` SSE |
-| `packages/web`    | Vite + React + Tailwind SPA，只跟 server 通信。                                                                                 | M3：`Probe.tsx` 链路探针（临时页，M4 重做正式前端）                      |
+| 包                | 职责                                                                                                                            | 当前状态                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `packages/engine` | 无头引擎：角色卡（ST V2，PNG 内嵌 JSON）解析、世界书引擎、Prompt 组装器、tokenizer 接口。零 UI 依赖、不发网络请求、不碰数据库。 | M2–M4：计划感知组装、群聊 prompt 与 speaker 调度已实现                 |
+| `packages/sse`    | 纯 SSE 文本解析：LF/CRLF、跨 chunk、多行 `data:` 与 EOF 刷出；供 web 与 server 复用。                                           | M8：共享协议解析                                                       |
+| `packages/server` | Hono API + SSE 流式 + SQLite 存储（Drizzle ORM），调用 engine。                                                                 | M3–M6：会话、设置、群聊成员/策略与 SSE 生成链路已实现                  |
+| `packages/web`    | Vite + React + Tailwind SPA，只跟 server 通信。                                                                                 | M5–M7：正式聊天 UI、Zustand 状态、群聊创建/成员设置/speaker 选择已实现 |
 
 ## 技术栈（锁定，不得替换）
 
@@ -118,7 +120,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 构建产物位于各包 `dist/`（web 为 `packages/web/dist/`，可直接静态部署）。
 server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖），迁移文件在 `packages/server/drizzle/`。
 
-## 手动冒烟测试（M5 全链路）
+## 手动冒烟测试（M7 全链路）
 
 前置：Node ≥ 22.5；一个 OpenAI 兼容上游（如任何暴露 `/chat/completions` 的服务）与它的 API key。
 
