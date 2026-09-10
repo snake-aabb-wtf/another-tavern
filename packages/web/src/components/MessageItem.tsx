@@ -14,6 +14,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
   const editMessage = useSessionsStore((s) => s.editMessage);
   const swipeTo = useSessionsStore((s) => s.swipeTo);
   const regenerate = useSessionsStore((s) => s.regenerate);
+  const retryMessage = useSessionsStore((s) => s.retryMessage);
   const streaming = useSessionsStore((s) => s.streaming);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
@@ -21,6 +22,8 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
   const isAssistant = message.role === "assistant";
   const candidateCount = message.swipeCandidates.length;
   const busy = streaming !== null;
+  const pending = !isAssistant && message.status === "pending";
+  const retryable = !isAssistant && (message.status === "failed" || message.status === "cancelled");
 
   return (
     <div className={`flex flex-col ${isAssistant ? "items-start" : "items-end"}`}>
@@ -83,6 +86,21 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
             >
               {t.edit}
             </button>
+            {pending && <span className="text-candle-300">{ti.pending}</span>}
+            {retryable && (
+              <>
+                <span className={message.status === "failed" ? "text-ember-400" : "text-ink-400"}>
+                  {message.status === "failed" ? ti.failed : ti.cancelled}
+                </span>
+                <button
+                  className="btn-ghost"
+                  disabled={busy}
+                  onClick={() => void retryMessage(message.id)}
+                >
+                  {ti.retry}
+                </button>
+              </>
+            )}
             {isAssistant && candidateCount > 0 && (
               <span className="flex items-center gap-1">
                 <button

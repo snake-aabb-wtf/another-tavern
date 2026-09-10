@@ -4,8 +4,18 @@
  * 客户端断开时 abort 上游请求。
  */
 
-import type { CharacterCard, WorldInfoBook, WorldInfoEntry } from "@another-tavern/engine";
-import { assemblePrompt, normalizePlan, tokenizerForModel } from "@another-tavern/engine";
+import type {
+  AssemblyResult,
+  CharacterCard,
+  WorldInfoBook,
+  WorldInfoEntry,
+} from "@another-tavern/engine";
+import {
+  AssemblyError,
+  assemblePrompt,
+  normalizePlan,
+  tokenizerForModel,
+} from "@another-tavern/engine";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
@@ -69,14 +79,24 @@ export function chatRoutes(deps: AppDeps): Hono {
 
   app.post("/api/chat/stream", async (c) => {
     const body = await c.req
-      .json<{ sessionId?: unknown; content?: unknown; regenerate?: unknown }>()
+      .json<{ sessionId?: unknown; content?: unknown; messageId?: unknown; regenerate?: unknown }>()
       .catch(() => ({}) as Record<string, never>);
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
     const regenerate = body.regenerate === true;
     const content = typeof body.content === "string" ? body.content : "";
-    if (sessionId === "" || (!regenerate && content === "")) {
+    const messageId = typeof body.messageId === "string" ? body.messageId : "";
+    if (
+      sessionId === "" ||
+      (!regenerate && content === "" && messageId === "") ||
+      (!regenerate && content !== "" && messageId !== "")
+    ) {
       return c.json(
-        { error: { code: "invalid_request", message: "sessionId 与 content 必填。" } },
+        {
+          error: {
+            code: "invalid_request",
+            message: "sessionId 与 content 或 messageId 二选一必填。",
+          },
+        },
         400,
       );
     }
@@ -121,14 +141,37 @@ export function chatRoutes(deps: AppDeps): Hono {
       }
     }
 
-    // 正常模式：用户消息先落库，使组装历史与会话记录一致
-    const userMessage = regenerate
-      ? null
-      : deps.db.repo.insertMessage(sessionId, {
+    // 正常模式：新消息先以 pending 落库；重试复用 failed/cancelled 消息，避免重复插入。
+    let userMessage: MessageRow | null = null;
+    if (!regenerate) {
+      if (messageId !== "") {
+        const existing = deps.db.repo.getMessage(sessionId, messageId);
+        if (
+          existing === undefined ||
+          existing.role !== "user" ||
+          (existing.status !== "failed" && existing.status !== "cancelled")
+        ) {
+          return c.json(
+            {
+              error: {
+                code: "retry_target_invalid",
+                message: "只能重试已失败或已取消的用户消息。",
+              },
+            },
+            400,
+          );
+        }
+        deps.db.repo.setMessageStatus(sessionId, messageId, "pending");
+        userMessage = { ...existing, status: "pending" };
+      } else {
+        userMessage = deps.db.repo.insertMessage(sessionId, {
           role: "user",
           content,
+          status: "pending",
           swipeCandidates: [],
         });
+      }
+    }
     const card = JSON.parse(character.data) as CharacterCard;
 
     // M4/M6：会话组装计划 → 全局默认计划 → 引擎内置默认（三级 fallback）
@@ -139,6 +182,9 @@ export function chatRoutes(deps: AppDeps): Hono {
       if (planRow === undefined) {
         if (session.planId !== null) {
           // 会话显式绑定的计划被删 → 显式 404（全局默认被删则静默回落内置默认）
+          if (userMessage !== null) {
+            deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
+          }
           return c.json(
             {
               error: {
@@ -175,28 +221,51 @@ export function chatRoutes(deps: AppDeps): Hono {
     // 组装用历史：正常模式 = 含新 user 消息的全量；regenerate = 排除目标回复及其后
     const historyRows: readonly MessageRow[] =
       regenerateTarget !== null
-        ? allMessages.filter((m) => m.seq < regenerateTarget.seq)
-        : [...allMessages, ...(userMessage !== null ? [userMessage] : [])];
-    const result = assemblePrompt({
-      card,
-      ...(plan !== undefined ? { plan } : {}),
-      persona: { name: personaName, description: "" },
-      history: historyRows.map((m) => ({
-        id: m.id,
-        role: m.role === "assistant" ? "assistant" : "user",
-        name: m.role === "assistant" ? card.name : personaName,
-        content: m.content,
-      })),
-      greeting: null, // greeting 已作为首条 assistant 消息入库
-      globalPrompts: { main: "", postHistory: "" },
-      authorNote: null,
-      worldInfo: {
-        books,
-        settings: { ...WI_SETTINGS },
-      },
-      budget: { ...BUDGET },
-      tokenizer: tokenizerForModel(settings.model),
-    });
+        ? allMessages.filter(
+            (m) =>
+              m.seq < regenerateTarget.seq && m.status !== "failed" && m.status !== "cancelled",
+          )
+        : [
+            ...allMessages.filter((m) => m.id !== userMessage?.id),
+            ...(userMessage !== null ? [userMessage] : []),
+          ].filter((m) => m.status !== "failed" && m.status !== "cancelled");
+    let result: AssemblyResult;
+    try {
+      result = assemblePrompt({
+        card,
+        ...(plan !== undefined ? { plan } : {}),
+        persona: { name: personaName, description: "" },
+        history: historyRows.map((m) => ({
+          id: m.id,
+          role: m.role === "assistant" ? "assistant" : "user",
+          name: m.role === "assistant" ? card.name : personaName,
+          content: m.content,
+        })),
+        greeting: null, // greeting 已作为首条 assistant 消息入库
+        globalPrompts: { main: "", postHistory: "" },
+        authorNote: null,
+        worldInfo: {
+          books,
+          settings: { ...WI_SETTINGS },
+        },
+        budget: { ...BUDGET },
+        tokenizer: tokenizerForModel(settings.model),
+      });
+    } catch (error) {
+      if (userMessage !== null) {
+        deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json(
+        {
+          error: {
+            code: error instanceof AssemblyError ? error.code : "assembly_failed",
+            message,
+          },
+        },
+        422,
+      );
+    }
 
     // M4：记录最近一次组装的最终 messages（调试端点用）
     deps.db.repo.updateLastMessages(sessionId, JSON.stringify(result.messages));
@@ -242,17 +311,22 @@ export function chatRoutes(deps: AppDeps): Hono {
         if (saved === undefined) {
           throw new Error("保存回复失败：目标消息不存在。");
         }
+        if (userMessage !== null) {
+          deps.db.repo.setMessageStatus(sessionId, userMessage.id, "completed");
+        }
         await stream.writeSSE({
           event: "done",
           data: JSON.stringify({ messageId: saved.id, content: accumulated }),
         });
       } catch (error) {
         if (controller.signal.aborted) {
-          await stream.writeSSE({
-            event: "error",
-            data: JSON.stringify({ code: "aborted", message: "客户端已断开。" }),
-          });
+          if (userMessage !== null) {
+            deps.db.repo.setMessageStatus(sessionId, userMessage.id, "cancelled");
+          }
           return;
+        }
+        if (userMessage !== null) {
+          deps.db.repo.setMessageStatus(sessionId, userMessage.id, "failed");
         }
         const message =
           error instanceof UpstreamError

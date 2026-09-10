@@ -44,6 +44,10 @@ export const messageItem = {
   prevCandidate: "上一个候选",
   nextCandidate: "下一个候选",
   newCandidate: "生成新候选",
+  pending: "等待生成",
+  failed: "生成失败",
+  cancelled: "已取消",
+  retry: "重试",
 };
 
 export const characters = {

@@ -33,12 +33,16 @@ export interface MessageRow {
   sessionId: string;
   role: "user" | "assistant" | "system";
   content: string;
+  /** 一次发送/生成生命周期；历史数据与手动消息均为 completed。 */
+  status: MessageStatus;
   /** swipe_candidates 列已从 JSON 还原。 */
   swipeCandidates: string[];
   swipeIndex: number;
   seq: number;
   createdAt: string;
 }
+
+export type MessageStatus = "pending" | "completed" | "failed" | "cancelled";
 
 export interface SettingsRow {
   baseUrl: string;
@@ -178,22 +182,35 @@ export class Repo {
 
   insertMessage(
     sessionId: string,
-    input: { role: "user" | "assistant" | "system"; content: string; swipeCandidates: string[] },
+    input: {
+      role: "user" | "assistant" | "system";
+      content: string;
+      swipeCandidates: string[];
+      status?: MessageStatus;
+    },
   ): MessageRow {
     const id = crypto.randomUUID();
     const seq = this.nextSeq(sessionId);
     this.sqlite
       .prepare(
-        "INSERT INTO messages (id, session_id, role, content, swipe_candidates, swipe_index, seq) VALUES (?, ?, ?, ?, ?, 0, ?)",
+        "INSERT INTO messages (id, session_id, role, content, status, swipe_candidates, swipe_index, seq) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
       )
-      .run(id, sessionId, input.role, input.content, JSON.stringify(input.swipeCandidates), seq);
+      .run(
+        id,
+        sessionId,
+        input.role,
+        input.content,
+        input.status ?? "completed",
+        JSON.stringify(input.swipeCandidates),
+        seq,
+      );
     return this.getMessage(sessionId, id) as MessageRow;
   }
 
   listMessages(sessionId: string): MessageRow[] {
     return this.sqlite
       .prepare(
-        "SELECT id, session_id, role, content, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? ORDER BY seq",
+        "SELECT id, session_id, role, content, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? ORDER BY seq",
       )
       .all(sessionId)
       .map((row) => mapMessage(row as Record<string, unknown>));
@@ -202,7 +219,7 @@ export class Repo {
   getMessage(sessionId: string, messageId: string): MessageRow | undefined {
     const row = this.sqlite
       .prepare(
-        "SELECT id, session_id, role, content, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? AND id = ?",
+        "SELECT id, session_id, role, content, status, swipe_candidates, swipe_index, seq, created_at FROM messages WHERE session_id = ? AND id = ?",
       )
       .get(sessionId, messageId);
     return row === undefined ? undefined : mapMessage(row as Record<string, unknown>);
@@ -213,6 +230,15 @@ export class Repo {
       this.sqlite
         .prepare("DELETE FROM messages WHERE session_id = ? AND id = ?")
         .run(sessionId, messageId).changes > 0
+    );
+  }
+
+  /** 更新消息生命周期状态；目标不存在时返回 false。 */
+  setMessageStatus(sessionId: string, messageId: string, status: MessageStatus): boolean {
+    return (
+      this.sqlite
+        .prepare("UPDATE messages SET status = ? WHERE session_id = ? AND id = ?")
+        .run(status, sessionId, messageId).changes > 0
     );
   }
 
@@ -556,11 +582,19 @@ function mapMessage(row: Record<string, unknown>): MessageRow {
     sessionId: String(row.session_id),
     role: row.role === "assistant" || row.role === "system" ? row.role : "user",
     content: String(row.content),
+    status: messageStatus(row.status),
     swipeCandidates: candidates,
     swipeIndex: Number(row.swipe_index ?? 0),
     seq: Number(row.seq ?? 0),
     createdAt: String(row.created_at),
   };
+}
+
+function messageStatus(value: unknown): MessageStatus {
+  if (value === "pending" || value === "failed" || value === "cancelled") {
+    return value;
+  }
+  return "completed";
 }
 
 function mapPlan(row: Record<string, unknown>): PlanRow {

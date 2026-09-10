@@ -85,7 +85,7 @@ export const chatSessions = sqliteTable("chat_sessions", {
 
 /**
  * 消息：seq 为会话内序号；assistant 消息的 swipe 候选存 JSON 数组，
- * swipeIndex 指向当前展示的候选。
+ * swipeIndex 指向当前展示的候选；status 记录一次生成请求的生命周期。
  */
 export const messages = sqliteTable("messages", {
   id: text("id").primaryKey(),
@@ -94,6 +94,9 @@ export const messages = sqliteTable("messages", {
     .references(() => chatSessions.id, { onDelete: "cascade" }),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
   content: text("content").notNull(),
+  status: text("status", { enum: ["pending", "completed", "failed", "cancelled"] })
+    .notNull()
+    .default("completed"),
   swipeCandidates: text("swipe_candidates").notNull(),
   swipeIndex: integer("swipe_index").notNull().default(0),
   seq: integer("seq").notNull(),

@@ -6,7 +6,7 @@
 
 - [README.md](./README.md)
 - 本文件（AGENTS.md）
-- `docs/` 下全部文档——三份规格文档（cards-spec / prompt-assembly / world-info-spec）是本项目的"法律"，是后续实现的唯一依据，开工前必须全部读完
+- `docs/` 下全部文档——规格文档（cards-spec / prompt-assembly / world-info / settings / chat-stream）是本项目的"法律"，是后续实现的唯一依据，开工前必须全部读完
 - 文档中标注【⚠️ 待确认】的条目：触及即停，向人类确认后再实现
 - `git log` 浏览最近提交，确认当前进度与里程碑
 

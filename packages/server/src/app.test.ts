@@ -350,10 +350,18 @@ describe("server API（内存 SQLite + fake 上游）", () => {
 
       // 落库断言
       const detail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
-        messages: Array<{ role: string; content: string; swipeCandidates: string[] }>;
+        messages: Array<{
+          role: string;
+          content: string;
+          status: string;
+          swipeCandidates: string[];
+        }>;
       };
+      const user = detail.messages.at(-2);
       const assistant = detail.messages.at(-1);
+      expect(user?.status).toBe("completed");
       expect(assistant?.role).toBe("assistant");
+      expect(assistant?.status).toBe("completed");
       expect(assistant?.content).toBe("你好，旅人");
       expect(assistant?.swipeCandidates).toEqual(["你好，旅人"]);
 
@@ -456,7 +464,7 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       expect(body.error.code).toBe("settings_missing");
     });
 
-    it("上游 500 → SSE error 事件（upstream_failed）", async () => {
+    it("上游 500 → SSE error，并将用户消息标为 failed", async () => {
       deps.upstreamFetch = vi.fn(
         async () => new Response("boom", { status: 500 }),
       ) as unknown as typeof fetch;
@@ -470,6 +478,50 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       const events = await readSse(res);
       expect(events.at(-1)?.event).toBe("error");
       expect((events.at(-1)?.data as { code: string }).code).toBe("upstream_failed");
+      const detail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{ id: string; role: string; content: string; status: string }>;
+      };
+      expect(detail.messages.at(-1)).toMatchObject({
+        role: "user",
+        content: "hi",
+        status: "failed",
+      });
+    });
+
+    it("重试失败消息 → 复用同一用户消息并在成功后标为 completed", async () => {
+      deps.upstreamFetch = vi.fn(
+        async () => new Response("boom", { status: 500 }),
+      ) as unknown as typeof fetch;
+      const { app, sessionId } = await setup();
+      await readSse(
+        await app.request("/api/chat/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, content: "只发一次" }),
+        }),
+      );
+      const failed = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{ id: string; role: string; content: string; status: string }>;
+      };
+      const user = failed.messages.at(-1);
+      expect(user).toMatchObject({ role: "user", content: "只发一次", status: "failed" });
+
+      deps.upstreamFetch = fakeUpstream(["成功"]);
+      const retryEvents = await readSse(
+        await app.request("/api/chat/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, messageId: user?.id }),
+        }),
+      );
+      expect(retryEvents.at(-1)?.event).toBe("done");
+      const completed = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{ id: string; role: string; content: string; status: string }>;
+      };
+      expect(completed.messages.filter((message) => message.role === "user")).toHaveLength(1);
+      expect(completed.messages.find((message) => message.id === user?.id)?.status).toBe(
+        "completed",
+      );
     });
 
     it("客户端断开 → abort 上游请求", async () => {
@@ -478,7 +530,11 @@ describe("server API（内存 SQLite + fake 上游）", () => {
         record.url = String(_url);
         record.init = init;
         record.signal = init?.signal ?? null;
-        return new Promise<Response>(() => {}); // 永不返回，模拟慢上游
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        });
       }) as unknown as typeof fetch;
       const { app, sessionId } = await setup();
 
@@ -503,6 +559,9 @@ describe("server API（内存 SQLite + fake 上游）", () => {
 
         controller.abort(); // 客户端断开
         await vi.waitFor(() => expect(record.signal?.aborted).toBe(true));
+        await vi.waitFor(() =>
+          expect(deps.db.repo.listMessages(sessionId).at(-1)?.status).toBe("cancelled"),
+        );
       } finally {
         server.close();
       }

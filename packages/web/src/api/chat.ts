@@ -9,8 +9,10 @@ export interface StreamHandlers {
 
 export interface StreamInput {
   sessionId: string;
-  /** 正常发送时必填；regenerate 时忽略。 */
+  /** 新消息发送时必填；regenerate / messageId 重试时忽略。 */
   content?: string;
+  /** 重试已失败或已取消的用户消息时传入。 */
+  messageId?: string;
   regenerate?: boolean;
 }
 

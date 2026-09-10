@@ -67,6 +67,7 @@ const CHAT_DETAIL: {
       sessionId: "s1",
       role: "assistant",
       content: "GREET",
+      status: "completed",
       swipeCandidates: ["GREET"],
       swipeIndex: 0,
       seq: 1,
@@ -77,6 +78,7 @@ const CHAT_DETAIL: {
       sessionId: "s1",
       role: "user",
       content: "hi",
+      status: "completed",
       swipeCandidates: [],
       swipeIndex: 0,
       seq: 2,
@@ -87,6 +89,7 @@ const CHAT_DETAIL: {
       sessionId: "s1",
       role: "assistant",
       content: "回复-v2",
+      status: "completed",
       swipeCandidates: ["回复-v1", "回复-v2"],
       swipeIndex: 1,
       seq: 3,
@@ -157,6 +160,42 @@ describe("sessions store", () => {
     };
     expect(body.regenerate).toBe(true);
     expect(body.content).toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("retryMessage：复用失败消息 id，不发送 content", async () => {
+    const failedDetail = {
+      ...CHAT_DETAIL,
+      messages: CHAT_DETAIL.messages.map((message) =>
+        message.id === "u1" ? { ...message, status: "failed" as const } : message,
+      ),
+    };
+    const completedDetail = {
+      ...CHAT_DETAIL,
+      messages: CHAT_DETAIL.messages.map((message) =>
+        message.id === "u1" ? { ...message, status: "completed" as const } : message,
+      ),
+    };
+    useSessionsStore.setState({ messages: failedDetail.messages });
+    const { fetch, calls } = makeFetch([
+      {
+        match: (url) => url.endsWith("/api/chat/stream"),
+        respond: () => sseResponse(["重试成功"]),
+      },
+      {
+        match: (url) => url.includes("/api/sessions/s1"),
+        respond: () => new Response(JSON.stringify(completedDetail)),
+      },
+    ]);
+    vi.stubGlobal("fetch", fetch);
+
+    await useSessionsStore.getState().retryMessage("u1");
+
+    const chatCall = calls.find((call) => call.url.endsWith("/api/chat/stream"));
+    expect(JSON.parse(String(chatCall?.init.body))).toEqual({ sessionId: "s1", messageId: "u1" });
+    expect(
+      useSessionsStore.getState().messages.find((message) => message.id === "u1")?.status,
+    ).toBe("completed");
     vi.unstubAllGlobals();
   });
 

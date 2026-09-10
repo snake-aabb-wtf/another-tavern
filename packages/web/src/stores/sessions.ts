@@ -43,6 +43,8 @@ interface SessionsState {
   createSession: (characterId: string, title?: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   send: (content: string) => Promise<void>;
+  /** 重试同一条失败/取消的用户消息，不新增消息行。 */
+  retryMessage: (messageId: string) => Promise<void>;
   regenerate: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   swipeTo: (messageId: string, index: number) => Promise<void>;
@@ -192,6 +194,51 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
     } catch (error) {
       set({ streaming: null, error: error instanceof Error ? error.message : String(error) });
+      try {
+        const detail = await getSessionDetail(currentId);
+        if (get().currentId === currentId) {
+          set({ messages: detail.messages });
+        }
+      } catch {
+        // 原错误优先；刷新失败不覆盖它
+      }
+    }
+  },
+
+  retryMessage: async (messageId: string) => {
+    const currentId = get().currentId;
+    if (currentId === null || get().streaming !== null) {
+      return;
+    }
+    set({ streaming: { text: "" }, error: null });
+    try {
+      const { content: full } = await streamChat(
+        { sessionId: currentId, messageId },
+        {
+          onDelta: (text) => {
+            const streaming = get().streaming;
+            set({ streaming: { text: (streaming?.text ?? "") + text } });
+          },
+          onError: (message) => {
+            set({ error: message });
+          },
+        },
+      );
+      const detail = await getSessionDetail(currentId);
+      set({ messages: detail.messages, streaming: null });
+      if (full === "") {
+        set({ error: "上游返回空回复。" });
+      }
+    } catch (error) {
+      set({ streaming: null, error: error instanceof Error ? error.message : String(error) });
+      try {
+        const detail = await getSessionDetail(currentId);
+        if (get().currentId === currentId) {
+          set({ messages: detail.messages });
+        }
+      } catch {
+        // 原错误优先；刷新失败不覆盖它
+      }
     }
   },
 

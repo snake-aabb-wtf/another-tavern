@@ -14,6 +14,7 @@ export interface ChatMessageRow {
   sessionId: string;
   role: "user" | "assistant" | "system";
   content: string;
+  status: "pending" | "completed" | "failed" | "cancelled";
   swipeCandidates: string[];
   swipeIndex: number;
   seq: number;

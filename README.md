@@ -50,12 +50,13 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 规格文档（docs/）
 
-| 文档                                                 | 内容                                                                | 状态   |
-| ---------------------------------------------------- | ------------------------------------------------------------------- | ------ |
-| [docs/cards-spec.md](./docs/cards-spec.md)           | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略       | 评审中 |
-| [docs/prompt-assembly.md](./docs/prompt-assembly.md) | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例 | 评审中 |
-| [docs/world-info-spec.md](./docs/world-info-spec.md) | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口         | 评审中 |
-| [docs/settings-spec.md](./docs/settings-spec.md)     | 设置与采样参数规范：资源模型、采样 7 键契约、发送白名单、API 与 UI  | 已实现 |
+| 文档                                                   | 内容                                                                  | 状态   |
+| ------------------------------------------------------ | --------------------------------------------------------------------- | ------ |
+| [docs/cards-spec.md](./docs/cards-spec.md)             | 角色卡规范：V2 字段全表、PNG/JSON 容器、V1 兼容、扩展保留策略         | 评审中 |
+| [docs/prompt-assembly.md](./docs/prompt-assembly.md)   | Prompt 组装规范：段序、token 预算与裁剪、tokenizer 策略、端到端示例   | 评审中 |
+| [docs/world-info-spec.md](./docs/world-info-spec.md)   | 世界书引擎规范：激活/排序/预算/递归规则、与组装器的 TS 接口           | 评审中 |
+| [docs/settings-spec.md](./docs/settings-spec.md)       | 设置与采样参数规范：资源模型、采样 7 键契约、发送白名单、API 与 UI    | 已实现 |
+| [docs/chat-stream-spec.md](./docs/chat-stream-spec.md) | 流式聊天与消息状态：SSE 事件、失败/取消、原消息重试与 prompt 历史规则 | 已实现 |
 
 ## 架构分层
 
