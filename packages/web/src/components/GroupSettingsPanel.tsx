@@ -77,7 +77,13 @@ export default function GroupSettingsPanel({ onClose }: Props) {
   };
 
   return (
-    <div className="panel-pop absolute right-3 top-14 z-10 w-[min(24rem,calc(100%-1.5rem))] p-4 shadow-pop">
+    <div
+      className="panel-pop absolute right-3 top-14 z-10 w-[min(24rem,calc(100%-1.5rem))] p-4 shadow-pop"
+      role="dialog"
+      aria-label={t.groupSettingsTitle}
+      aria-modal="true"
+      data-testid="group-settings-dialog"
+    >
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-display text-base text-ink-100">{t.groupSettingsTitle}</h2>
         <button className="btn-ghost" onClick={onClose} aria-label={t.cancel}>
@@ -87,7 +93,11 @@ export default function GroupSettingsPanel({ onClose }: Props) {
 
       <div className="space-y-2">
         {draftMembers.map((member, index) => (
-          <div key={member.characterId} className="rounded-md border border-line p-2">
+          <div
+            key={member.characterId}
+            className="rounded-md border border-line p-2"
+            data-testid={`group-member-${member.characterId}`}
+          >
             <div className="flex items-center gap-2">
               <span className="w-5 text-center text-xs text-brass-400">{index + 1}</span>
               <span className="flex-1 truncate text-sm text-ink-200">{member.characterName}</span>

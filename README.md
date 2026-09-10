@@ -110,6 +110,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 | `pnpm dev`                                   | **一条命令同时启动 server(:3001) 与 web(:5173)**（并行）                                        |
 | `pnpm build`                                 | 依次构建全部包（engine → server → web，按拓扑顺序）                                             |
 | `pnpm test`                                  | 运行全部 vitest 测试                                                                            |
+| `pnpm e2e`                                   | 启动 fake upstream、server、web，运行 Playwright 浏览器 E2E                                     |
 | `pnpm typecheck`                             | 对全部包运行 `tsc --noEmit`（含测试文件）                                                       |
 | `pnpm lint`                                  | ESLint 检查全部源码                                                                             |
 | `pnpm format`                                | Prettier 格式化（提交前先跑一遍）                                                               |

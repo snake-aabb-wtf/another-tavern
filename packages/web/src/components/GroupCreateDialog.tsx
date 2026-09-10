@@ -62,7 +62,13 @@ export default function GroupCreateDialog({ onClose, onCreated }: Props) {
 
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-tavern-950/80 p-4">
-      <div className="panel-pop max-h-[90vh] w-full max-w-lg overflow-y-auto p-5">
+      <div
+        className="panel-pop max-h-[90vh] w-full max-w-lg overflow-y-auto p-5"
+        role="dialog"
+        aria-label={t.groupTitle}
+        aria-modal="true"
+        data-testid="group-create-dialog"
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg text-ink-100">{t.groupTitle}</h2>
           <button className="btn-ghost" onClick={onClose} aria-label={t.close}>

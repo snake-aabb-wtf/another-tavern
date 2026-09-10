@@ -10,6 +10,15 @@
 pnpm test
 ```
 
+真实浏览器 E2E 在本地执行：
+
+```bash
+pnpm exec playwright install chromium
+pnpm e2e
+```
+
+CI 会自动安装 Chromium，并把失败时的截图、视频和 trace 上传为 workflow artifact；Release job 依赖该浏览器 E2E 通过后才会继续。
+
 群聊相关验收覆盖：
 
 | 场景       | 验收内容                                                         |

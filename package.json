@@ -14,9 +14,12 @@
     "test": "pnpm -r run test",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "e2e": "playwright test",
+    "typecheck:e2e": "tsc --noEmit -p e2e/tsconfig.json"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
