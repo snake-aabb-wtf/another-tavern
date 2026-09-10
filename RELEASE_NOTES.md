@@ -1,6 +1,14 @@
-# Another Tavern v0.1.0
+# Another Tavern v0.2.0
 
-首个公开版本。开源、自托管优先的 AI 角色扮演框架，定位为 SillyTavern 的平替——核心是提示词组装引擎：把角色卡、用户人设、世界书、聊天历史在 token 预算内按规则组装成最终请求。
+本版本完善了服务安全、流式协议处理和消息生成生命周期。Another Tavern 是开源、自托管优先的 AI 角色扮演框架，定位为 SillyTavern 的平替——核心是提示词组装引擎：把角色卡、用户人设、世界书、聊天历史在 token 预算内按规则组装成最终请求。
+
+## v0.2.0 更新
+
+- **安全默认值**：服务默认只监听 `127.0.0.1`；需要局域网或容器访问时显式设置 `HOST=0.0.0.0`
+- **统一 SSE 解析**：支持 LF/CRLF、跨 chunk、多行 `data:`、注释、EOF 残留事件和 `[DONE]`
+- **消息状态持久化**：支持 `pending`、`completed`、`failed`、`cancelled`，失败/取消消息不会污染后续 prompt
+- **原消息重试**：重试复用原消息，避免产生重复用户消息
+- **Docker 兼容**：镜像内已显式设置 `HOST=0.0.0.0`
 
 ## 亮点
 
@@ -15,7 +23,7 @@
 
 | 产物                               | 适用                                    | 用法                                                           |
 | ---------------------------------- | --------------------------------------- | -------------------------------------------------------------- |
-| `another-tavern-v0.1.0-node22.zip` | 已装 Node ≥ 22.5 的 Windows/Linux/macOS | 解压后运行 `start.cmd`（Windows）或 `start.sh`，浏览器自动打开 |
+| `another-tavern-v0.2.0-node22.zip` | 已装 Node ≥ 22.5 的 Windows/Linux/macOS | 解压后运行 `start.cmd`（Windows）或 `start.sh`，浏览器自动打开 |
 | Docker 镜像 / Dockerfile           | 有 Docker 的环境                        | 见 README「Docker」节                                          |
 
 ## 快速开始（源码）
@@ -25,7 +33,7 @@ pnpm install
 pnpm dev        # server:3001 + web:5173
 ```
 
-## 已知限制（v0.1.0）
+## 已知限制（v0.2.0）
 
 - 不支持：群聊、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率
 - 世界书插入位置仅实现 beforeChar / afterChar / atDepth（其余可选但不注入，字段保留）
