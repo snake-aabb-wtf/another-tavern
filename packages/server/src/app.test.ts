@@ -584,6 +584,84 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       });
     });
 
+    it("群聊 E2E 验收：创建详情 → 成员设置 → 发言 → 刷新恢复", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["Lisa 的", "完整回复"], record);
+      const { app, sessionId, ariaId, lisaId } = await setupGroup();
+
+      const initial = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        session: { kind: string; title: string };
+        members: Array<{ characterId: string; position: number; muted: boolean }>;
+        messages: Array<{ role: string; speakerCharacterId: string | null }>;
+      };
+      expect(initial.session).toMatchObject({ kind: "group", title: "小队" });
+      expect(initial.members).toEqual([
+        expect.objectContaining({ characterId: ariaId, position: 0, muted: false }),
+        expect.objectContaining({ characterId: lisaId, position: 1, muted: false }),
+      ]);
+      expect(initial.messages[0]).toMatchObject({
+        role: "assistant",
+        speakerCharacterId: ariaId,
+      });
+
+      const members = await app.request(`/api/sessions/${sessionId}/members`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          members: [
+            { characterId: lisaId, muted: false, talkativeness: 70 },
+            { characterId: ariaId, muted: false, talkativeness: 30 },
+          ],
+        }),
+      });
+      expect(members.status).toBe(200);
+
+      const settings = await app.request(`/api/sessions/${sessionId}/group-settings`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ replyStrategy: "manual", scenarioOverride: "打烊后的旅店" }),
+      });
+      expect(settings.status).toBe(200);
+
+      const stream = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "请完整介绍这里。", speakerId: lisaId }),
+      });
+      expect(stream.status).toBe(200);
+      const events = await readSse(stream);
+      expect(events.map((event) => event.event)).toEqual(["meta", "delta", "delta", "done"]);
+      expect(events[0]?.data).toMatchObject({ speakerId: lisaId, speakerName: "Lisa" });
+
+      const refreshed = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        session: { groupSettings: Record<string, unknown> };
+        members: Array<{ characterId: string; position: number; talkativeness: number }>;
+        messages: Array<{
+          role: string;
+          content: string;
+          status: string;
+          speakerCharacterId: string | null;
+          speakerName: string | null;
+        }>;
+      };
+      expect(refreshed.session.groupSettings).toMatchObject({
+        replyStrategy: "manual",
+        scenarioOverride: "打烊后的旅店",
+      });
+      expect(refreshed.members).toEqual([
+        expect.objectContaining({ characterId: lisaId, position: 0, talkativeness: 70 }),
+        expect.objectContaining({ characterId: ariaId, position: 1, talkativeness: 30 }),
+      ]);
+      expect(refreshed.messages.filter((message) => message.role === "user")).toHaveLength(1);
+      expect(refreshed.messages.at(-1)).toMatchObject({
+        role: "assistant",
+        content: "Lisa 的完整回复",
+        status: "completed",
+        speakerCharacterId: lisaId,
+        speakerName: "Lisa",
+      });
+    });
+
     it("群聊静音角色需要 force 才能发言", async () => {
       const { app, sessionId, ariaId, lisaId } = await setupGroup();
       await setGroupMembers(app, sessionId, [

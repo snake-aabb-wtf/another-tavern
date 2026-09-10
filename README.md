@@ -131,6 +131,8 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 7. **刷新保持**：刷新页面 → 会话列表仍在、上次打开的会话自动恢复、历史消息完整。
 8. **采样生效**：设置页改 `temperature`（如 0.1）等采样参数（7 键全集与发送白名单见 [docs/settings-spec.md](./docs/settings-spec.md)）→ 保存 → 继续对话，观察回复变化；或用 `curl` 对比上游收到的请求体（白名单外的 sampling 键不会发送）。
 
+群聊核心链路的自动化与浏览器冒烟验收见 [docs/group-chat-e2e.md](./docs/group-chat-e2e.md)。
+
 ## 安全说明
 
 - **API key 与聊天记录以明文存储在本地 SQLite**（`data/app.db`，Docker 中为 `/app/data`）——这是单机自托管工具的刻意取舍：数据不出本机。
