@@ -6,15 +6,21 @@ import { create } from "zustand";
 
 import { streamChat } from "../api/chat.js";
 import {
+  createGroupSession as createGroupSessionApi,
   createSession,
   deleteSession,
   getLastPrompt,
   getSessionDetail,
   listSessions,
+  replaceSessionMembers,
   setSessionPlan,
   updateMessage,
+  updateGroupSettings,
   type ChatMessageRow,
+  type GroupSettings,
   type PromptMessages,
+  type SessionMember,
+  type SessionMemberPatch,
   type SessionSummary,
 } from "../api/sessions.js";
 import { getCharacterLorebookLinks } from "../api/lorebooks.js";
@@ -30,6 +36,10 @@ interface SessionsState {
   currentId: string | null;
   currentCharacterId: string | null;
   messages: ChatMessageRow[];
+  currentMembers: SessionMember[];
+  currentGroupSettings: GroupSettings | null;
+  currentSpeakerId: string | null;
+  forceSpeaker: boolean;
   /** M6：当前角色挂载的世界书 id。 */
   linkedBookIds: string[];
   /** M6：最近一次组装的最终 prompt（null = 未拉取）。 */
@@ -41,8 +51,13 @@ interface SessionsState {
   loadSessions: () => Promise<void>;
   openSession: (id: string) => Promise<void>;
   createSession: (characterId: string, title?: string) => Promise<void>;
+  createGroupSession: (characterIds: string[], title?: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
-  send: (content: string) => Promise<void>;
+  setCurrentSpeaker: (characterId: string | null) => void;
+  setForceSpeaker: (force: boolean) => void;
+  saveGroupMembers: (members: SessionMemberPatch[]) => Promise<void>;
+  saveGroupSettings: (patch: Partial<GroupSettings>) => Promise<void>;
+  send: (content: string, options?: { force?: boolean }) => Promise<void>;
   /** 重试同一条失败/取消的用户消息，不新增消息行。 */
   retryMessage: (messageId: string) => Promise<void>;
   regenerate: () => Promise<void>;
@@ -68,6 +83,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   currentCharacterId: null,
   linkedBookIds: [],
   messages: [],
+  currentMembers: [],
+  currentGroupSettings: null,
+  currentSpeakerId: null,
+  forceSpeaker: false,
   lastPrompt: null,
   streaming: null,
   loading: false,
@@ -107,6 +126,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         currentId: id,
         currentCharacterId: detail.session.characterId,
         messages: detail.messages,
+        currentMembers: detail.members,
+        currentGroupSettings:
+          detail.session.kind === "group"
+            ? (detail.session.groupSettings as GroupSettings | null)
+            : null,
+        currentSpeakerId:
+          detail.session.kind === "group"
+            ? (detail.members.find((member) => !member.muted)?.characterId ??
+              detail.members[0]?.characterId ??
+              null)
+            : null,
+        forceSpeaker: false,
         streaming: null,
         loading: false,
       });
@@ -154,6 +185,49 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     await get().openSession(session.id);
   },
 
+  createGroupSession: async (characterIds: string[], title?: string) => {
+    const session = await createGroupSessionApi(characterIds, title);
+    await get().loadSessions();
+    await get().openSession(session.id);
+  },
+
+  setCurrentSpeaker: (characterId: string | null) => {
+    set({ currentSpeakerId: characterId });
+  },
+
+  setForceSpeaker: (force: boolean) => {
+    set({ forceSpeaker: force });
+  },
+
+  saveGroupMembers: async (members: SessionMemberPatch[]) => {
+    const currentId = get().currentId;
+    if (currentId === null) {
+      return;
+    }
+    const result = await replaceSessionMembers(currentId, members);
+    const currentSpeakerId = get().currentSpeakerId;
+    const nextSpeaker = result.members.some((member) => member.characterId === currentSpeakerId)
+      ? currentSpeakerId
+      : (result.members.find((member) => !member.muted)?.characterId ??
+        result.members[0]?.characterId ??
+        null);
+    set({ currentMembers: result.members, currentSpeakerId: nextSpeaker });
+  },
+
+  saveGroupSettings: async (patch: Partial<GroupSettings>) => {
+    const currentId = get().currentId;
+    if (currentId === null) {
+      return;
+    }
+    const result = await updateGroupSettings(currentId, patch);
+    set({
+      currentGroupSettings: result.groupSettings,
+      sessions: get().sessions.map((session) =>
+        session.id === currentId ? { ...session, groupSettings: result.groupSettings } : session,
+      ),
+    });
+  },
+
   deleteSession: async (id: string) => {
     await deleteSession(id);
     if (get().currentId === id) {
@@ -167,15 +241,30 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     await get().loadSessions();
   },
 
-  send: async (content: string) => {
+  send: async (content: string, options?: { force?: boolean }) => {
     const currentId = get().currentId;
     if (currentId === null || content.trim() === "" || get().streaming !== null) {
+      return;
+    }
+    const session = get().sessions.find((item) => item.id === currentId);
+    const isGroup = session?.kind === "group";
+    const settings = get().currentGroupSettings ?? session?.groupSettings;
+    const speakerId = get().currentSpeakerId;
+    const force = options?.force ?? get().forceSpeaker;
+    if (isGroup && settings?.replyStrategy === "manual" && speakerId === null) {
+      set({ error: "请先选择发言角色。" });
       return;
     }
     set({ streaming: { text: "" }, error: null });
     try {
       const { content: full } = await streamChat(
-        { sessionId: currentId, content },
+        {
+          sessionId: currentId,
+          content,
+          ...(isGroup && settings?.replyStrategy === "manual" && speakerId !== null
+            ? { speakerId, force }
+            : {}),
+        },
         {
           onDelta: (text) => {
             const streaming = get().streaming;
@@ -183,6 +272,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           },
           onError: (message) => {
             set({ error: message });
+          },
+          onMeta: (data) => {
+            if (typeof data.speakerId === "string") {
+              set({ currentSpeakerId: data.speakerId });
+            }
           },
         },
       );
@@ -212,8 +306,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
     set({ streaming: { text: "" }, error: null });
     try {
+      const session = get().sessions.find((item) => item.id === currentId);
+      const isGroup = session?.kind === "group";
+      const retryTarget = get().messages.find((message) => message.id === messageId);
+      const speakerId = retryTarget?.speakerCharacterId ?? get().currentSpeakerId;
       const { content: full } = await streamChat(
-        { sessionId: currentId, messageId },
+        {
+          sessionId: currentId,
+          messageId,
+          ...(isGroup && speakerId !== null ? { speakerId, force: get().forceSpeaker } : {}),
+        },
         {
           onDelta: (text) => {
             const streaming = get().streaming;
@@ -221,6 +323,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           },
           onError: (message) => {
             set({ error: message });
+          },
+          onMeta: (data) => {
+            if (typeof data.speakerId === "string") {
+              set({ currentSpeakerId: data.speakerId });
+            }
           },
         },
       );
@@ -258,6 +365,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           },
           onError: (message) => {
             set({ error: message });
+          },
+          onMeta: (data) => {
+            if (typeof data.speakerId === "string") {
+              set({ currentSpeakerId: data.speakerId });
+            }
           },
         },
       );

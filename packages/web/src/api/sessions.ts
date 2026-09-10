@@ -11,6 +11,14 @@ export interface SessionSummary {
   createdAt: string;
 }
 
+export interface GroupSettings {
+  replyStrategy: "manual" | "list";
+  generationMode: "swap";
+  scenarioOverride: string | null;
+  allowSelfResponses: boolean;
+  [key: string]: unknown;
+}
+
 export interface SessionMember {
   sessionId: string;
   characterId: string;
@@ -51,6 +59,52 @@ export function getSessionDetail(id: string): Promise<SessionDetail> {
 
 export function createSession(characterId: string, title?: string): Promise<SessionSummary> {
   return api.post("/api/sessions", { characterId, title }) as Promise<SessionSummary>;
+}
+
+export function createGroupSession(
+  characterIds: string[],
+  title?: string,
+): Promise<SessionSummary> {
+  return api.post("/api/sessions", {
+    kind: "group",
+    title,
+    characterIds,
+  }) as Promise<SessionSummary>;
+}
+
+export function getSessionMembers(
+  sessionId: string,
+): Promise<{ sessionId: string; members: SessionMember[] }> {
+  return api.get(`/api/sessions/${sessionId}/members`) as Promise<{
+    sessionId: string;
+    members: SessionMember[];
+  }>;
+}
+
+export interface SessionMemberPatch {
+  characterId: string;
+  muted: boolean;
+  talkativeness: number;
+}
+
+export function replaceSessionMembers(
+  sessionId: string,
+  members: SessionMemberPatch[],
+): Promise<{ sessionId: string; members: SessionMember[] }> {
+  return api.put(`/api/sessions/${sessionId}/members`, { members }) as Promise<{
+    sessionId: string;
+    members: SessionMember[];
+  }>;
+}
+
+export function updateGroupSettings(
+  sessionId: string,
+  patch: Partial<GroupSettings>,
+): Promise<{ sessionId: string; groupSettings: GroupSettings }> {
+  return api.put(`/api/sessions/${sessionId}/group-settings`, patch) as Promise<{
+    sessionId: string;
+    groupSettings: GroupSettings;
+  }>;
 }
 
 export function deleteSession(id: string): Promise<null> {

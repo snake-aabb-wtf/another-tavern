@@ -47,6 +47,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 - **M4** 数据地基：组装计划、世界书管理表与导入、生态解析器、计划感知组装 ✅
 - **M5** 正式前端核心：会话/聊天/角色卡/设置四页 + zustand 状态 + API client ✅
 - **M6** 世界书与预设 UI：世界书管理/条目编辑/挂载、组装计划编辑器、ST 导入、prompt 可观测 ✅
+- **M7** 群聊前端核心：群聊创建、成员设置、发言角色选择、消息身份展示 ✅（自动多轮暂未实现）
 
 ## 规格文档（docs/）
 
@@ -141,7 +142,7 @@ server 数据库默认写入 `packages/server/data/app.db`（`DB_PATH` 可覆盖
 
 本仓库与 ST 的兼容仅限**文件格式**（V2 角色卡、预设 JSON、世界书 JSON 的导入）；不包含任何 ST 源码。当前差异：
 
-- 暂不支持：群聊完整 UI 与自动多轮（第一阶段已完成数据地基、引擎调度和 server 生成链路，规格见 [docs/group-chat-spec.md](./docs/group-chat-spec.md)）、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率、Prompt Manager 拖拽（用上下移按钮替代）
+- 暂不支持：群聊自动多轮（第一阶段已完成数据地基、引擎调度、server 生成链路与前端核心 UI，规格见 [docs/group-chat-spec.md](./docs/group-chat-spec.md)）、正则脚本、世界书正则 key、Timed Effects、Inclusion Group、向量检索、Outlet、作者注频率、Prompt Manager 拖拽（用上下移按钮替代）
 - 世界书插入位置仅实现 beforeChar / afterChar / atDepth（其余可选但不注入，字段保留）
 - 组装段序由「组装计划」编排（含上移/下移与自定义槽文本），非 ST 的自由拖拽列表
 - 完整对照见 `docs/world-info-spec.md` §9 与 `docs/cards-spec.md` §1（不支持格式清单）

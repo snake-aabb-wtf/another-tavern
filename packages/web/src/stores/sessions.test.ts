@@ -57,10 +57,28 @@ function makeFetch(
 }
 
 const CHAT_DETAIL: {
-  session: { id: string; characterId: string; title: string; planId: null; createdAt: string };
+  session: {
+    id: string;
+    characterId: string;
+    title: string;
+    kind: "single";
+    groupSettings: null;
+    planId: null;
+    createdAt: string;
+  };
+  members: [];
   messages: import("../api/sessions.js").ChatMessageRow[];
 } = {
-  session: { id: "s1", characterId: "c1", title: "T", planId: null, createdAt: "" },
+  session: {
+    id: "s1",
+    characterId: "c1",
+    title: "T",
+    kind: "single",
+    groupSettings: null,
+    planId: null,
+    createdAt: "",
+  },
+  members: [],
   messages: [
     {
       id: "g",
@@ -104,6 +122,10 @@ describe("sessions store", () => {
       sessions: [],
       currentId: "s1",
       messages: [],
+      currentMembers: [],
+      currentGroupSettings: null,
+      currentSpeakerId: null,
+      forceSpeaker: false,
       streaming: null,
       loading: false,
       error: null,
@@ -247,8 +269,16 @@ describe("sessions store", () => {
   });
 
   it("createSession：创建 → 列表刷新 → 打开新会话并写入 localStorage", async () => {
-    const created = { id: "s-new", characterId: "c1", title: "Aria", planId: null, createdAt: "" };
-    const detail = { session: created, messages: [] };
+    const created = {
+      id: "s-new",
+      characterId: "c1",
+      title: "Aria",
+      kind: "single",
+      groupSettings: null,
+      planId: null,
+      createdAt: "",
+    };
+    const detail = { session: created, members: [], messages: [] };
     const { fetch, calls } = makeFetch([
       {
         match: (url, init) => url.endsWith("/api/sessions") && init.method === "POST",
@@ -275,6 +305,173 @@ describe("sessions store", () => {
     } catch {
       // node 环境跳过 localStorage 断言
     }
+    vi.unstubAllGlobals();
+  });
+
+  it("群聊 send：手动策略发送 speakerId 与 force", async () => {
+    const groupSession = {
+      id: "g1",
+      characterId: "c1",
+      title: "酒馆夜谈",
+      kind: "group" as const,
+      groupSettings: {
+        replyStrategy: "manual" as const,
+        generationMode: "swap" as const,
+        scenarioOverride: null,
+        allowSelfResponses: false,
+      },
+      planId: null,
+      createdAt: "",
+    };
+    useSessionsStore.setState({
+      currentId: "g1",
+      sessions: [groupSession],
+      currentGroupSettings: groupSession.groupSettings,
+      currentSpeakerId: "c2",
+      forceSpeaker: true,
+    });
+    const { fetch, calls } = makeFetch([
+      { match: (url) => url.endsWith("/api/chat/stream"), respond: () => sseResponse(["回复"]) },
+      {
+        match: (url) => url.includes("/api/sessions/g1"),
+        respond: () =>
+          new Response(JSON.stringify({ session: groupSession, members: [], messages: [] })),
+      },
+    ]);
+    vi.stubGlobal("fetch", fetch);
+
+    await useSessionsStore.getState().send("晚上好");
+
+    const chatCall = calls.find((call) => call.url.endsWith("/api/chat/stream"));
+    expect(JSON.parse(String(chatCall?.init.body))).toMatchObject({
+      sessionId: "g1",
+      content: "晚上好",
+      speakerId: "c2",
+      force: true,
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("createGroupSession：创建群聊时发送角色顺序", async () => {
+    const created = {
+      id: "g-new",
+      characterId: "c1",
+      title: "夜谈",
+      kind: "group" as const,
+      groupSettings: {
+        replyStrategy: "manual" as const,
+        generationMode: "swap" as const,
+        scenarioOverride: null,
+        allowSelfResponses: false,
+      },
+      planId: null,
+      createdAt: "",
+    };
+    const detail = {
+      session: created,
+      members: [
+        {
+          sessionId: "g-new",
+          characterId: "c1",
+          characterName: "Aria",
+          position: 0,
+          muted: false,
+          talkativeness: 50,
+          createdAt: "",
+        },
+        {
+          sessionId: "g-new",
+          characterId: "c2",
+          characterName: "Lisa",
+          position: 1,
+          muted: false,
+          talkativeness: 50,
+          createdAt: "",
+        },
+      ],
+      messages: [],
+    };
+    const { fetch, calls } = makeFetch([
+      {
+        match: (url, init) => url.endsWith("/api/sessions") && init.method === "POST",
+        respond: () => new Response(JSON.stringify(created), { status: 201 }),
+      },
+      {
+        match: (url, init) => url.endsWith("/api/sessions") && init.method === "GET",
+        respond: () => new Response(JSON.stringify([created])),
+      },
+      {
+        match: (url) => url.includes("/api/sessions/g-new"),
+        respond: () => new Response(JSON.stringify(detail)),
+      },
+      {
+        match: (url) => url.includes("/api/characters/c1/lorebook-links"),
+        respond: () => new Response(JSON.stringify({ characterId: "c1", bookIds: [] })),
+      },
+    ]);
+    vi.stubGlobal("fetch", fetch);
+
+    await useSessionsStore.getState().createGroupSession(["c1", "c2"], "夜谈");
+
+    const postCall = calls.find((call) => call.init.method === "POST");
+    expect(JSON.parse(String(postCall?.init.body))).toEqual({
+      kind: "group",
+      title: "夜谈",
+      characterIds: ["c1", "c2"],
+    });
+    expect(useSessionsStore.getState().currentMembers).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+
+  it("群聊设置：保存成员顺序和群聊策略", async () => {
+    const updatedMembers = [
+      {
+        sessionId: "s1",
+        characterId: "c2",
+        characterName: "Lisa",
+        position: 0,
+        muted: true,
+        talkativeness: 25,
+        createdAt: "",
+      },
+      {
+        sessionId: "s1",
+        characterId: "c1",
+        characterName: "Aria",
+        position: 1,
+        muted: false,
+        talkativeness: 75,
+        createdAt: "",
+      },
+    ];
+    const updatedSettings = {
+      replyStrategy: "list" as const,
+      generationMode: "swap" as const,
+      scenarioOverride: "酒馆打烊后",
+      allowSelfResponses: true,
+    };
+    const { fetch, calls } = makeFetch([
+      {
+        match: (url, init) => url.endsWith("/members") && init.method === "PUT",
+        respond: () => new Response(JSON.stringify({ sessionId: "s1", members: updatedMembers })),
+      },
+      {
+        match: (url, init) => url.endsWith("/group-settings") && init.method === "PUT",
+        respond: () =>
+          new Response(JSON.stringify({ sessionId: "s1", groupSettings: updatedSettings })),
+      },
+    ]);
+    vi.stubGlobal("fetch", fetch);
+
+    await useSessionsStore.getState().saveGroupMembers([
+      { characterId: "c2", muted: true, talkativeness: 25 },
+      { characterId: "c1", muted: false, talkativeness: 75 },
+    ]);
+    await useSessionsStore.getState().saveGroupSettings(updatedSettings);
+
+    expect(calls.map((call) => call.init.method)).toEqual(["PUT", "PUT"]);
+    expect(useSessionsStore.getState().currentMembers).toEqual(updatedMembers);
+    expect(useSessionsStore.getState().currentGroupSettings).toEqual(updatedSettings);
     vi.unstubAllGlobals();
   });
 });

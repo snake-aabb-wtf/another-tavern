@@ -6,6 +6,7 @@ import { usePlansStore } from "../stores/plans.js";
 import { useSessionsStore } from "../stores/sessions.js";
 import { useSettingsStore } from "../stores/settings.js";
 import { chat as t } from "../ui-text.js";
+import GroupSettingsPanel from "./GroupSettingsPanel.js";
 import MessageItem from "./MessageItem.js";
 
 export default function ChatView() {
@@ -13,22 +14,32 @@ export default function ChatView() {
   const currentId = useSessionsStore((s) => s.currentId);
   const linkedBookIds = useSessionsStore((s) => s.linkedBookIds);
   const messages = useSessionsStore((s) => s.messages);
+  const currentMembers = useSessionsStore((s) => s.currentMembers);
+  const currentGroupSettings = useSessionsStore((s) => s.currentGroupSettings);
+  const currentSpeakerId = useSessionsStore((s) => s.currentSpeakerId);
+  const forceSpeaker = useSessionsStore((s) => s.forceSpeaker);
   const streaming = useSessionsStore((s) => s.streaming);
   const error = useSessionsStore((s) => s.error);
   const send = useSessionsStore((s) => s.send);
   const regenerate = useSessionsStore((s) => s.regenerate);
   const setPlan = useSessionsStore((s) => s.setPlan);
   const fetchLastPrompt = useSessionsStore((s) => s.fetchLastPrompt);
+  const setCurrentSpeaker = useSessionsStore((s) => s.setCurrentSpeaker);
+  const setForceSpeaker = useSessionsStore((s) => s.setForceSpeaker);
   const lastPrompt = useSessionsStore((s) => s.lastPrompt);
   const plans = usePlansStore((s) => s.items);
   const settings = useSettingsStore((s) => s.settings);
   const lorebookItems = useLorebooksStore((s) => s.items);
   const globalBooks = lorebookItems.filter((b) => b.isGlobal);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const session = sessions.find((s) => s.id === currentId);
+  const isGroup = session?.kind === "group";
+  const replyStrategy = currentGroupSettings?.replyStrategy ?? "manual";
+  const currentSpeaker = currentMembers.find((member) => member.characterId === currentSpeakerId);
   const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id ?? null;
 
   // 当前生效计划名：会话级 > 全局默认 > 内置默认
@@ -62,11 +73,31 @@ export default function ChatView() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-2 text-xs text-ink-400">
         <span className="font-display text-sm text-ink-100">
           {session?.title || t.untitledSession}
         </span>
+        {isGroup && (
+          <span className="rounded-full border border-brass-500/40 px-2 py-0.5 text-brass-400">
+            {t.groupBadge} · {t.groupMembers(currentMembers.length)}
+          </span>
+        )}
+        {isGroup && (
+          <span className="flex items-center gap-1">
+            {currentMembers.map((member) => (
+              <span
+                key={member.characterId}
+                className={`rounded-full px-1.5 py-0.5 ${
+                  member.muted ? "bg-tavern-800 text-ink-500" : "bg-tavern-800 text-ink-300"
+                }`}
+              >
+                {member.characterName}
+                {member.muted ? ` · ${t.memberMuted}` : ""}
+              </span>
+            ))}
+          </span>
+        )}
         <span className="flex items-center gap-1">
           {t.planLabel}
           <select
@@ -89,6 +120,11 @@ export default function ChatView() {
           </select>
         </span>
         <span>{t.loreSources(linkedBookIds.length, globalBooks.length)}</span>
+        {isGroup && (
+          <button className="btn-ghost" onClick={() => setShowGroupSettings((value) => !value)}>
+            {t.memberSettings}
+          </button>
+        )}
         <button
           className="btn-ghost ml-auto"
           onClick={() => {
@@ -99,6 +135,10 @@ export default function ChatView() {
           {t.viewLastPrompt}
         </button>
       </div>
+
+      {showGroupSettings && isGroup && (
+        <GroupSettingsPanel onClose={() => setShowGroupSettings(false)} />
+      )}
 
       {showPrompt && (
         <div className="max-h-60 space-y-2 overflow-y-auto border-b border-line bg-tavern-900/60 p-3">
@@ -130,7 +170,9 @@ export default function ChatView() {
                     className="breathe inline-block h-1.5 w-1.5 rounded-full bg-candle-400"
                     aria-hidden="true"
                   />
-                  {t.streamingPlaceholder}
+                  {isGroup && currentSpeaker !== undefined
+                    ? t.streamingAs(currentSpeaker.characterName)
+                    : t.streamingPlaceholder}
                 </span>
               ) : (
                 streaming.text
@@ -141,33 +183,67 @@ export default function ChatView() {
         {error !== null && <p className="text-xs text-ember-400">{error}</p>}
         <div ref={bottomRef} />
       </div>
-      <div className="flex gap-2 border-t border-line p-3">
-        <textarea
-          className="input-base h-16 flex-1 resize-none"
-          placeholder={t.inputPlaceholder}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        <button
-          className="btn-primary self-end"
-          disabled={busy || draft.trim() === ""}
-          onClick={submit}
-        >
-          {t.send}
-        </button>
-        <button
-          className="btn-secondary self-end"
-          disabled={busy}
-          onClick={() => void regenerate()}
-        >
-          {t.regenerate}
-        </button>
+      <div className="border-t border-line p-3">
+        {isGroup && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-400">
+            <label className="flex items-center gap-2">
+              {t.currentSpeaker}
+              <select
+                className="input-base"
+                value={replyStrategy === "list" ? "" : (currentSpeakerId ?? "")}
+                disabled={replyStrategy === "list"}
+                onChange={(event) => setCurrentSpeaker(event.target.value || null)}
+              >
+                {replyStrategy === "list" && <option value="">{t.automaticSpeaker}</option>}
+                {currentMembers.map((member) => (
+                  <option key={member.characterId} value={member.characterId}>
+                    {member.characterName}
+                    {member.muted ? ` · ${t.muted}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {replyStrategy === "manual" && (
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={forceSpeaker}
+                  onChange={(event) => setForceSpeaker(event.target.checked)}
+                  className="accent-candle-400"
+                />
+                {t.forceSpeaker}
+              </label>
+            )}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <textarea
+            className="input-base h-16 flex-1 resize-none"
+            placeholder={t.inputPlaceholder}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <button
+            className="btn-primary self-end"
+            disabled={busy || draft.trim() === ""}
+            onClick={submit}
+          >
+            {t.send}
+          </button>
+          <button
+            className="btn-secondary self-end"
+            disabled={busy}
+            onClick={() => void regenerate()}
+          >
+            {t.regenerate}
+          </button>
+        </div>
       </div>
     </div>
   );

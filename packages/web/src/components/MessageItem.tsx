@@ -28,17 +28,22 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
   return (
     <div className={`flex flex-col ${isAssistant ? "items-start" : "items-end"}`}>
       {isAssistant ? (
-        <div className="msg-enter max-w-[85%] whitespace-pre-wrap break-words rounded-lg border-l-2 border-brass-500 bg-parchment-100 px-4 py-3 text-sm text-inkwell-900 shadow-panel">
-          {editing ? (
-            <textarea
-              autoFocus
-              className="min-h-20 w-72 rounded-md border border-brass-500/40 bg-parchment-100 px-2.5 py-1.5 text-sm text-inkwell-900 outline-none focus:border-brass-500"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-          ) : (
-            message.content
+        <div className="max-w-[85%]">
+          {message.speakerName && (
+            <div className="mb-1 px-1 text-xs text-brass-400">{message.speakerName}</div>
           )}
+          <div className="msg-enter whitespace-pre-wrap break-words rounded-lg border-l-2 border-brass-500 bg-parchment-100 px-4 py-3 text-sm text-inkwell-900 shadow-panel">
+            {editing ? (
+              <textarea
+                autoFocus
+                className="min-h-20 w-72 rounded-md border border-brass-500/40 bg-parchment-100 px-2.5 py-1.5 text-sm text-inkwell-900 outline-none focus:border-brass-500"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+            ) : (
+              message.content
+            )}
+          </div>
         </div>
       ) : (
         <div className="msg-enter max-w-[85%] whitespace-pre-wrap break-words rounded-lg border border-candle-600/40 bg-tavern-800 px-4 py-3 text-sm text-ink-100">

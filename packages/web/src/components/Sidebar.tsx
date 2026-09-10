@@ -1,18 +1,24 @@
 /** 左侧会话列表（桌面常驻，窄屏为抽屉内容）。 */
 import { useSessionsStore } from "../stores/sessions.js";
 import { sidebar as t } from "../ui-text.js";
+import { useState } from "react";
+import GroupCreateDialog from "./GroupCreateDialog.js";
 
 export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const sessions = useSessionsStore((s) => s.sessions);
   const currentId = useSessionsStore((s) => s.currentId);
   const openSession = useSessionsStore((s) => s.openSession);
   const deleteSession = useSessionsStore((s) => s.deleteSession);
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   return (
     <aside className="flex h-full flex-col bg-tavern-950">
       <div className="p-2">
         <button className="btn-secondary w-full" onClick={onNavigate}>
           {t.newSession}
+        </button>
+        <button className="btn-primary mt-2 w-full" onClick={() => setCreatingGroup(true)}>
+          {t.newGroup}
         </button>
       </div>
       <ul className="flex-1 overflow-y-auto pb-2">
@@ -42,6 +48,15 @@ export default function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           <li className="p-3 text-center text-xs text-ink-400">{t.empty}</li>
         )}
       </ul>
+      {creatingGroup && (
+        <GroupCreateDialog
+          onClose={() => setCreatingGroup(false)}
+          onCreated={() => {
+            setCreatingGroup(false);
+            onNavigate();
+          }}
+        />
+      )}
     </aside>
   );
 }
