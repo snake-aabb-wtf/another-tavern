@@ -59,7 +59,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 
 ## 架构分层
 
-依赖方向严格单向：`web → server → engine`，禁止反向依赖。
+业务依赖方向严格单向：`web → server → engine`，禁止反向依赖。`packages/sse` 是无网络、无 UI、无数据库的纯 SSE 文本解析工具，供 web 与 server 共同依赖，不参与业务层调用。
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -86,6 +86,7 @@ pnpm dev        # server:3001 + web:5173（/api 自动代理）
 | 包                | 职责                                                                                                                            | 当前状态                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `packages/engine` | 无头引擎：角色卡（ST V2，PNG 内嵌 JSON）解析、世界书引擎、Prompt 组装器、tokenizer 接口。零 UI 依赖、不发网络请求、不碰数据库。 | M2 完成：104 tests + golden files                                        |
+| `packages/sse`    | 纯 SSE 文本解析：LF/CRLF、跨 chunk、多行 `data:` 与 EOF 刷出；供 web 与 server 复用。                                           | M8：共享协议解析                                                         |
 | `packages/server` | Hono API + SSE 流式 + SQLite 存储（Drizzle ORM），调用 engine。                                                                 | M3 完成：卡导入 / 会话消息 CRUD / settings / `POST /api/chat/stream` SSE |
 | `packages/web`    | Vite + React + Tailwind SPA，只跟 server 通信。                                                                                 | M3：`Probe.tsx` 链路探针（临时页，M4 重做正式前端）                      |
 

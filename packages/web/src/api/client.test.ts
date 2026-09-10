@@ -110,6 +110,19 @@ describe("readSseStream", () => {
     expect(frames[0]?.data).toEqual({ text: "断" });
   });
 
+  it("接受 CRLF，并在 EOF 刷出未以空行收尾的帧", async () => {
+    const frames: Array<{ event: string; data: unknown }> = [];
+    await readSseStream(
+      sseResponse(['event: delta\r\ndata: {"text":"一"}\r\n\r\n', 'data: {"text":"二"}']),
+      (frame) => frames.push(frame),
+    );
+
+    expect(frames).toEqual([
+      { event: "delta", data: { text: "一" } },
+      { event: "message", data: { text: "二" } },
+    ]);
+  });
+
   it("错误状态 → ApiError", async () => {
     await expect(
       readSseStream(new Response("boom", { status: 500 }), () => {}),

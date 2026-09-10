@@ -3,6 +3,8 @@
  * 流式读取 chat/completions 的 SSE，产出 content delta 字符串。
  */
 
+import { SseParser } from "@another-tavern/sse";
+
 export class UpstreamError extends Error {
   readonly status: number;
   readonly detail: string;
@@ -55,48 +57,42 @@ export async function* streamUpstreamCompletion(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
+  const parser = new SseParser();
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
       break;
     }
-    buffer += decoder.decode(value, { stream: true });
-    let separator = buffer.indexOf("\n\n");
-    while (separator !== -1) {
-      const frame = buffer.slice(0, separator);
-      buffer = buffer.slice(separator + 2);
-      const delta = extractDelta(frame);
+    for (const frame of parser.push(decoder.decode(value, { stream: true }))) {
+      const delta = extractDelta(frame.data);
       if (delta !== null) {
         yield delta;
       }
-      separator = buffer.indexOf("\n\n");
+    }
+  }
+  for (const frame of [...parser.push(decoder.decode()), ...parser.finish()]) {
+    const delta = extractDelta(frame.data);
+    if (delta !== null) {
+      yield delta;
     }
   }
 }
 
-/** 从一帧 SSE 里提取 data: 载荷的 delta.content；[DONE] 返回 null 结束。 */
-function extractDelta(frame: string): string | null {
-  for (const rawLine of frame.split("\n")) {
-    const line = rawLine.trim();
-    if (!line.startsWith("data:")) {
-      continue;
+/** 从 SSE data 载荷中提取 OpenAI delta.content；[DONE] 与心跳返回 null。 */
+function extractDelta(payload: string): string | null {
+  if (payload === "[DONE]") {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(payload) as {
+      choices?: Array<{ delta?: { content?: unknown } }>;
+    };
+    const content = parsed.choices?.[0]?.delta?.content;
+    if (typeof content === "string" && content !== "") {
+      return content;
     }
-    const payload = line.slice(5).trim();
-    if (payload === "[DONE]") {
-      return null;
-    }
-    try {
-      const parsed = JSON.parse(payload) as {
-        choices?: Array<{ delta?: { content?: unknown } }>;
-      };
-      const content = parsed.choices?.[0]?.delta?.content;
-      if (typeof content === "string" && content !== "") {
-        return content;
-      }
-    } catch {
-      // 非 JSON 心跳/注释帧：忽略
-    }
+  } catch {
+    // 非 JSON 心跳/注释帧：忽略
   }
   return null;
 }

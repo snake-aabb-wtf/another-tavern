@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@another-tavern/sse": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.15"

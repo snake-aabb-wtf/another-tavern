@@ -54,6 +54,9 @@ importers:
       '@another-tavern/engine':
         specifier: workspace:*
         version: link:../engine
+      '@another-tavern/sse':
+        specifier: workspace:*
+        version: link:../sse
       '@hono/node-server':
         specifier: ^1.19.17
         version: 1.19.17(hono@4.13.7)
@@ -74,8 +77,13 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
 
+  packages/sse: {}
+
   packages/web:
     dependencies:
+      '@another-tavern/sse':
+        specifier: workspace:*
+        version: link:../sse
       react:
         specifier: ^19.2.8
         version: 19.2.8

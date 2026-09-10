@@ -1,5 +1,7 @@
 /** 统一 fetch 封装：JSON 请求、结构化错误、multipart 上传、SSE 流读取。 */
 
+import { SseParser } from "@another-tavern/sse";
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -81,24 +83,26 @@ export async function readSseStream(
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  const parser = new SseParser();
   const frames: SseFrame[] = [];
-  let buffer = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
       break;
     }
-    buffer += decoder.decode(value, { stream: true });
-    let separator = buffer.indexOf("\n\n");
-    while (separator !== -1) {
-      const frame = buffer.slice(0, separator);
-      buffer = buffer.slice(separator + 2);
-      const parsed = parseFrame(frame);
-      if (parsed !== null) {
-        frames.push(parsed);
-        onFrame(parsed);
+    for (const raw of parser.push(decoder.decode(value, { stream: true }))) {
+      const frame = parseFrame(raw.event, raw.data);
+      if (frame !== null) {
+        frames.push(frame);
+        onFrame(frame);
       }
-      separator = buffer.indexOf("\n\n");
+    }
+  }
+  for (const raw of [...parser.push(decoder.decode()), ...parser.finish()]) {
+    const frame = parseFrame(raw.event, raw.data);
+    if (frame !== null) {
+      frames.push(frame);
+      onFrame(frame);
     }
   }
   return frames;
@@ -108,14 +112,9 @@ function resOk(res: Response): boolean {
   return res.ok;
 }
 
-function parseFrame(frame: string): SseFrame | null {
-  const event = /event: (.+)/.exec(frame)?.[1] ?? "message";
-  const dataLine = /data: (.+)/.exec(frame)?.[1];
-  if (dataLine === undefined) {
-    return null;
-  }
+function parseFrame(event: string, data: string): SseFrame | null {
   try {
-    return { event, data: JSON.parse(dataLine) as Record<string, unknown> };
+    return { event, data: JSON.parse(data) as Record<string, unknown> };
   } catch {
     return null;
   }

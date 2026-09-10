@@ -21,9 +21,10 @@
 ## 3. 架构分层（不可违反）
 
 - `packages/engine`：无头引擎。**禁止**任何 UI 依赖、网络请求、数据库访问。
+- `packages/sse`：纯 SSE 文本解析。**禁止**网络请求、UI 依赖、数据库访问和业务语义。
 - `packages/server`：Hono API + SSE 流式 + SQLite（Drizzle ORM）。只能调用 engine 获取组装结果，不得在 server 内复制引擎逻辑。
 - `packages/web`：只与 server 通信（HTTP / SSE），不得直接访问 SQLite 或引擎内部。
-- 依赖方向严格单向：`web → server → engine`。
+- 业务依赖方向严格单向：`web → server → engine`。`web` 与 `server` 可共同依赖 `packages/sse`；该包不得反向依赖任何业务包。
 
 ## 4. 技术栈锁定
 
