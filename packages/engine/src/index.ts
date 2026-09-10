@@ -55,6 +55,8 @@ export {
   type AssemblyResult,
   type AssemblyStats,
   type ChatMessage,
+  type GroupAssemblyInput,
+  type GroupParticipant,
   type Persona,
   type SystemSectionId,
 } from "./assembly/assemble.js";
@@ -73,6 +75,18 @@ export type {
   SystemPlanSlot,
   SystemSlotId,
 } from "./assembly/plan.js";
+
+// —— 群聊第一阶段（group-chat-spec）——
+export {
+  chooseNextSpeaker,
+  SpeakerSelectionError,
+  type ChooseNextSpeakerInput,
+  type SpeakerHistoryItem,
+  type SpeakerMember,
+  type SpeakerSelection,
+  type SpeakerSelectionErrorCode,
+  type SpeakerStrategy,
+} from "./group/scheduler.js";
 export { parseOpenAiPreset, PresetParseError } from "./assembly/parse-preset.js";
 export type { ParsedPreset } from "./assembly/parse-preset.js";
 export { parseSillyTavernWorldInfo, WorldInfoParseError } from "./worldinfo/parse-native.js";

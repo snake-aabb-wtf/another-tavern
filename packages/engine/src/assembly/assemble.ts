@@ -36,6 +36,23 @@ export interface ChatMessage {
   /** 显示名（includeNames 扫描前缀用；不进最终 content）。 */
   name: string;
   content: string;
+  /** 群聊中的具体发言角色；单聊可省略。 */
+  speakerId?: string;
+}
+
+export interface GroupParticipant {
+  /** 会话成员 id，不等同于角色名。 */
+  id: string;
+  card: CharacterCard;
+  muted: boolean;
+}
+
+export interface GroupAssemblyInput {
+  /** 当前这次生成要扮演的成员 id。 */
+  activeCharacterId: string;
+  participants: readonly GroupParticipant[];
+  generationMode: "swap";
+  scenarioOverride: string | null;
 }
 
 export interface AssemblyInput {
@@ -64,6 +81,8 @@ export interface AssemblyInput {
   };
   /** 组装计划；缺省 = 默认计划（docs §2.1 固定段序，行为与 M2/M3 一致）。 */
   plan?: AssemblyPlan;
+  /** 群聊上下文；省略时保持单聊行为。 */
+  group?: GroupAssemblyInput;
   tokenizer: Tokenizer;
 }
 
@@ -120,8 +139,25 @@ interface DepthSlot {
 /** 组装器唯一对外入口（纯函数；§6.3 轮 3 以 AssemblyError 抛出）。 */
 export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const { card, persona, tokenizer } = input;
+  const group = input.group;
   const warnings: string[] = [];
   const count = (text: string): number => tokenizer.count(text);
+
+  const formatGroupHistory = (name: string, content: string): string => {
+    if (group === undefined) {
+      return content;
+    }
+    const speaker = name.trim() === "" ? (content.trim() === "" ? "Unknown" : "Speaker") : name;
+    return `${speaker}: ${content}`;
+  };
+
+  const groupInstruction =
+    group === undefined
+      ? ""
+      : buildGroupInstruction(
+          card.name,
+          group.participants.map((participant) => participant.card.name),
+        );
 
   // —— 组装计划（M4/M6）：缺省 = docs §2.1 固定段序；槽位编排顺序、启停与内容来源 ——
   const plan: AssemblyPlan = input.plan ?? defaultAssemblyPlan();
@@ -144,6 +180,7 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     card.systemPrompt.trim() !== ""
       ? M(substituteOriginal(card.systemPrompt, globalMain))
       : M(globalMain);
+  const mainWithGroup = groupInstruction === "" ? mainText : `${mainText}\n\n${groupInstruction}`;
 
   // PHI：卡值覆盖全局（§3.5）；皆空 → 不注入
   const globalPhi = input.globalPrompts.postHistory;
@@ -156,11 +193,11 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     Exclude<SystemSectionId, "wiBefore" | "wiAfter" | "examples">,
     string
   > = {
-    main: mainText,
+    main: mainWithGroup,
     persona: M(persona.description),
     description: M(card.description),
     personality: M(card.personality),
-    scenario: M(card.scenario),
+    scenario: M(group?.scenarioOverride ?? card.scenario),
   };
 
   const exampleBlocks = M(card.mesExample)
@@ -237,11 +274,21 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const chat: ChatEntry[] = [];
   if (hasGreeting) {
     const content = M(input.greeting ?? "");
-    chat.push({ id: "greeting", message: { role: "assistant", content }, tokens: count(content) });
+    const formatted = formatGroupHistory(card.name, content);
+    chat.push({
+      id: "greeting",
+      message: { role: "assistant", content: formatted },
+      tokens: count(formatted),
+    });
   }
   for (const m of input.history) {
     const content = M(m.content);
-    chat.push({ id: m.id, message: { role: m.role, content }, tokens: count(content) });
+    const formatted = formatGroupHistory(m.name, content);
+    chat.push({
+      id: m.id,
+      message: { role: m.role, content: formatted },
+      tokens: count(formatted),
+    });
   }
 
   // —— 步骤 4：裁剪循环（§6.3：examples 块 → 最旧历史 → 硬错误）——
@@ -425,4 +472,19 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     tokenizer: { id: tokenizer.id, estimated: tokenizer.estimated },
     warnings,
   };
+}
+
+function buildGroupInstruction(activeName: string, participantNames: readonly string[]): string {
+  const names = [
+    ...new Set(participantNames.map((name) => name.trim()).filter((name) => name !== "")),
+  ];
+  if (!names.includes(activeName)) {
+    names.unshift(activeName);
+  }
+  return [
+    `You are currently speaking as ${activeName}.`,
+    `This is a group conversation with: ${names.join(", ")}.`,
+    "Historical messages use a speaker-name prefix for identity only.",
+    `Reply only as ${activeName}; do not speak for other characters and do not add a speaker-name prefix to your reply.`,
+  ].join("\n");
 }
