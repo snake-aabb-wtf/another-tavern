@@ -141,6 +141,8 @@ export const settings = sqliteTable("settings", {
   model: text("model").notNull().default(""),
   /** M4：采样参数 JSON（temperature 等），白名单透传上游。 */
   sampling: text("sampling").notNull().default("{}"),
+  /** M8：全局正则脚本 JSON 数组；规则本体不混入 sampling。 */
+  regexScripts: text("regex_scripts").notNull().default("[]"),
   /** M6：全局默认组装计划；null = 引擎内置默认。会话 plan_id 为空时使用。 */
   defaultPlanId: text("default_plan_id").references(() => assemblyPlans.id, {
     onDelete: "set null",

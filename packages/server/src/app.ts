@@ -12,6 +12,7 @@ import { lorebooksRoutes } from "./routes/lorebooks.js";
 import { plansRoutes } from "./routes/plans.js";
 import { sessionsRoutes } from "./routes/sessions.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { regexRoutes } from "./routes/regex.js";
 
 export interface AppDeps {
   db: AppDatabase;
@@ -25,6 +26,7 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/api/health", (c) => c.json({ ok: true }));
   app.route("/", charactersRoutes(deps));
   app.route("/", settingsRoutes(deps));
+  app.route("/", regexRoutes(deps));
   app.route("/", sessionsRoutes(deps));
   app.route("/", plansRoutes(deps));
   app.route("/", lorebooksRoutes(deps));

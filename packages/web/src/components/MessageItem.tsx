@@ -18,6 +18,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
   const streaming = useSessionsStore((s) => s.streaming);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
+  const displayContent = message.displayContent ?? message.content;
 
   const isAssistant = message.role === "assistant";
   const candidateCount = message.swipeCandidates.length;
@@ -41,7 +42,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
                 onChange={(e) => setDraft(e.target.value)}
               />
             ) : (
-              message.content
+              displayContent
             )}
           </div>
         </div>
@@ -55,7 +56,7 @@ export default function MessageItem({ message, isLastAssistant }: Props) {
               onChange={(e) => setDraft(e.target.value)}
             />
           ) : (
-            message.content
+            displayContent
           )}
         </div>
       )}

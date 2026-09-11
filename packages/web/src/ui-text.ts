@@ -10,6 +10,7 @@ export const app = {
     characters: "角色卡",
     lorebooks: "世界书",
     plans: "计划",
+    regex: "正则",
     settings: "设置",
   },
   openSidebar: "打开会话列表",
@@ -130,6 +131,44 @@ export const settings = {
   save: "保存",
   saved: "已保存（API key 不回显明文）✓",
   saveFailed: "保存失败：",
+};
+
+export const regex = {
+  title: "正则脚本",
+  description: "按顺序处理用户输入、AI 输出或最终 Prompt；原始聊天记录不会被改写。",
+  globalRules: "全局规则",
+  newRule: "新建规则",
+  pickRule: "从左侧选择一条规则，或新建规则。",
+  empty: "还没有全局正则规则。",
+  loading: "加载中…",
+  name: "名称",
+  findRegex: "查找正则",
+  replaceString: "替换文本",
+  trimStrings: "从捕获结果移除（每行一项）",
+  placementsTitle: "作用位置",
+  placements: {
+    userInput: "用户输入",
+    aiOutput: "AI 输出",
+    prompt: "Prompt",
+    worldInfo: "世界书",
+    markdown: "Markdown",
+  },
+  enabled: "启用",
+  disabled: "停用",
+  delete: "删除",
+  save: "保存",
+  cancel: "取消",
+  saved: "已保存 ✓",
+  deleted: "已删除 ✓",
+  saveFailed: "保存失败：",
+  nameRequired: "规则名称不能为空。",
+  placementRequired: "至少选择一个作用位置。",
+  testInput: "测试输入",
+  test: "测试规则",
+  tested: "测试完成 ✓",
+  testFailed: "测试失败：",
+  scopeNote:
+    "角色卡中的 extensions.regex_scripts 与预设中的同名扩展会自动参与聊天；本页管理全局规则。",
 };
 
 export const lorebooks = {

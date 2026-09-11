@@ -175,6 +175,33 @@ describe("server API（内存 SQLite + fake 上游）", () => {
         defaultPlanId: null,
       });
     });
+
+    it("正则脚本 API 保存并规范化 ST 字段", async () => {
+      const app = createApp(deps);
+      const put = await app.request("/api/regex-scripts", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scripts: [
+            {
+              id: "r1",
+              script_name: "脱壳",
+              find_regex: "/foo/g",
+              replace_string: "bar",
+              placement: [2],
+            },
+          ],
+        }),
+      });
+      expect(put.status).toBe(200);
+      expect((await put.json()) as { scripts: Array<{ placement: string[] }> }).toMatchObject({
+        scripts: [{ placement: ["aiOutput"] }],
+      });
+      const get = await app.request("/api/regex-scripts");
+      expect(await get.json()).toMatchObject({
+        scripts: [{ id: "r1", scriptName: "脱壳", findRegex: "/foo/g" }],
+      });
+    });
   });
 
   describe("characters", () => {
@@ -859,6 +886,53 @@ describe("server API（内存 SQLite + fake 上游）", () => {
       };
       expect(upstreamBody.seed).toBe(42);
       expect(upstreamBody.temperature).toBe(0.7);
+    });
+
+    it("正则脚本分别处理 Prompt 副本和 AI 输出展示副本", async () => {
+      const record: RecordedFetch = { url: "", init: undefined, signal: null };
+      deps.upstreamFetch = fakeUpstream(["嘿 回复"], record);
+      const { app, sessionId } = await setup();
+      await app.request("/api/regex-scripts", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scripts: [
+            {
+              id: "prompt-rule",
+              scriptName: "Prompt 规则",
+              findRegex: "/欢迎光临/g",
+              replaceString: "问候",
+              placement: ["prompt"],
+            },
+            {
+              id: "output-rule",
+              scriptName: "输出规则",
+              findRegex: "/嘿/g",
+              replaceString: "展示",
+              placement: ["aiOutput"],
+            },
+          ],
+        }),
+      });
+      const response = await app.request("/api/chat/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId, content: "你好" }),
+      });
+      expect(response.status).toBe(200);
+      await readSse(response);
+
+      const upstreamBody = JSON.parse(String(record.init?.body)) as {
+        messages: Array<{ content: string }>;
+      };
+      expect(upstreamBody.messages.some((message) => message.content.includes("问候"))).toBe(true);
+      const detail = (await (await app.request(`/api/sessions/${sessionId}`)).json()) as {
+        messages: Array<{ role: string; content: string; displayContent?: string }>;
+      };
+      const assistant = detail.messages.find(
+        (message) => message.role === "assistant" && message.content === "嘿 回复",
+      );
+      expect(assistant).toMatchObject({ content: "嘿 回复", displayContent: "展示 回复" });
     });
 
     it("sampling 白名单外的 top_k → 上游请求体不含 top_k", async () => {

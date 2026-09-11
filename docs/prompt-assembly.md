@@ -17,7 +17,7 @@
 1. 零 IO、零时钟、零随机（v1 世界书无概率激活，引擎整体确定性：同输入必同输出）。
 2. 输出为 OpenAI Chat Completions 风格的 `messages` 数组（`role: system | user | assistant`），不含模型调用参数（温度等在 server 层）。
 3. 裁剪与降级必须**可观测**：每处裁剪、每个被丢弃的世界书条目、tokenizer 估算模式都要进入结果统计与 warnings。
-4. 除宏替换外，任何段落的文本内容不因组装被修改。
+4. 除宏替换与已启用的正则脚本外，任何段落的文本内容不因组装被修改。正则脚本的模型、作用位置和顺序见 `regex-spec.md`。
 
 ## 2. 组装顺序（核心）
 
@@ -169,7 +169,7 @@ historyBudget 按 §6.2 步骤 4 动态计算
 ### 6.2 执行顺序（唯一权威定义）
 
 ```
-0. 宏替换：卡段文本、历史消息、作者注、各书 entry.content 副本（world-info §7.3）
+0. 宏替换；按 `regex-spec.md` 对各文本副本执行对应作用位置的正则脚本
 1. resolveWorldInfo(...)：基于完整历史（未裁剪）与扫描窗口计算激活与预算
 2. 拼 system 消息（main→…→examples），计数
 3. 拼历史骨架：greeting + 消息（未放深度注入与 PHI）

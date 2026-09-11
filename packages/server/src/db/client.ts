@@ -75,6 +75,8 @@ export interface SettingsRow {
   model: string;
   /** M4：采样参数（temperature 等），白名单透传上游。 */
   sampling: Record<string, unknown>;
+  /** M8：全局正则脚本 JSON 数组。 */
+  regexScripts: unknown[];
   /** M6：全局默认组装计划 id；null = 引擎内置默认。 */
   defaultPlanId: string | null;
 }
@@ -482,11 +484,18 @@ export class Repo {
   getSettings(): SettingsRow {
     const row = this.sqlite
       .prepare(
-        "SELECT base_url, api_key, model, sampling, default_plan_id FROM settings WHERE id = 1",
+        "SELECT base_url, api_key, model, sampling, regex_scripts, default_plan_id FROM settings WHERE id = 1",
       )
       .get() as Record<string, unknown> | undefined;
     if (row === undefined) {
-      return { baseUrl: "", apiKey: "", model: "", sampling: {}, defaultPlanId: null };
+      return {
+        baseUrl: "",
+        apiKey: "",
+        model: "",
+        sampling: {},
+        regexScripts: [],
+        defaultPlanId: null,
+      };
     }
     let sampling: Record<string, unknown> = {};
     try {
@@ -497,11 +506,21 @@ export class Repo {
     } catch {
       sampling = {};
     }
+    let regexScripts: unknown[] = [];
+    try {
+      const parsed: unknown = JSON.parse(String(row.regex_scripts ?? "[]"));
+      if (Array.isArray(parsed)) {
+        regexScripts = parsed;
+      }
+    } catch {
+      regexScripts = [];
+    }
     return {
       baseUrl: String(row.base_url ?? ""),
       apiKey: String(row.api_key ?? ""),
       model: String(row.model ?? ""),
       sampling,
+      regexScripts,
       defaultPlanId:
         row.default_plan_id === undefined || row.default_plan_id === null
           ? null
@@ -512,14 +531,15 @@ export class Repo {
   putSettings(input: SettingsRow): SettingsRow {
     this.sqlite
       .prepare(
-        `INSERT INTO settings (id, base_url, api_key, model, sampling, default_plan_id, updated_at) VALUES (1, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, api_key = excluded.api_key, model = excluded.model, sampling = excluded.sampling, default_plan_id = excluded.default_plan_id, updated_at = excluded.updated_at`,
+        `INSERT INTO settings (id, base_url, api_key, model, sampling, regex_scripts, default_plan_id, updated_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, api_key = excluded.api_key, model = excluded.model, sampling = excluded.sampling, regex_scripts = excluded.regex_scripts, default_plan_id = excluded.default_plan_id, updated_at = excluded.updated_at`,
       )
       .run(
         input.baseUrl,
         input.apiKey,
         input.model,
         JSON.stringify(input.sampling ?? {}),
+        JSON.stringify(input.regexScripts ?? []),
         input.defaultPlanId,
         new Date().toISOString(),
       );

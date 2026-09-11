@@ -91,3 +91,13 @@ export { parseOpenAiPreset, PresetParseError } from "./assembly/parse-preset.js"
 export type { ParsedPreset } from "./assembly/parse-preset.js";
 export { parseSillyTavernWorldInfo, WorldInfoParseError } from "./worldinfo/parse-native.js";
 export type { ParsedWorldInfo } from "./worldinfo/parse-native.js";
+
+// —— 正则脚本（regex-spec）——
+export { applyRegexScripts, normalizeRegexScript, normalizeRegexScripts } from "./regex/index.js";
+export type {
+  RegexApplyResult,
+  RegexMacroContext,
+  RegexPlacement,
+  RegexScript,
+  RegexSubstitution,
+} from "./regex/index.js";

@@ -24,6 +24,7 @@ import { streamSSE } from "hono/streaming";
 
 import type { AppDeps } from "../app.js";
 import type { LorebookRow, MessageRow } from "../db/client.js";
+import { loadRegexScripts } from "../regex.js";
 import { streamUpstreamCompletion, UpstreamError } from "../upstream.js";
 
 /** 组装器预算的 M3 出厂常量（docs/prompt-assembly §6.1 默认值由配置层提供）。 */
@@ -363,6 +364,7 @@ export function chatRoutes(deps: AppDeps): Hono {
           settings: { ...WI_SETTINGS },
         },
         budget: { ...BUDGET },
+        regex: { scripts: loadRegexScripts(deps, activeCard, plan) },
         tokenizer: tokenizerForModel(settings.model),
       });
     } catch (error) {

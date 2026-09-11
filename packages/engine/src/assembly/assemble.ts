@@ -9,6 +9,7 @@ import type { CharacterCard } from "../cards/model.js";
 import type { WorldInfoBook } from "../worldinfo/model.js";
 import { resolveWorldInfo, type ResolveWorldInfoSettings } from "../worldinfo/resolve.js";
 import type { Tokenizer } from "../tokenizer/tokenizer.js";
+import { applyRegexScripts, type RegexPlacement, type RegexScript } from "../regex/index.js";
 import { substituteMacros, substituteOriginal } from "./macros.js";
 import {
   defaultAssemblyPlan,
@@ -83,6 +84,8 @@ export interface AssemblyInput {
   plan?: AssemblyPlan;
   /** 群聊上下文；省略时保持单聊行为。 */
   group?: GroupAssemblyInput;
+  /** 正则脚本；省略时保持既有组装结果逐位不变。 */
+  regex?: { scripts: readonly RegexScript[] };
   tokenizer: Tokenizer;
 }
 
@@ -141,7 +144,25 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const { card, persona, tokenizer } = input;
   const group = input.group;
   const warnings: string[] = [];
+  const regexWarnings = new Set<string>();
   const count = (text: string): number => tokenizer.count(text);
+  const regexScripts = input.regex?.scripts ?? [];
+  const regexContext = { char: card.name, user: persona.name };
+  const applyPlacement = (text: string, placement: RegexPlacement, depth?: number): string => {
+    const result = applyRegexScripts(text, regexScripts, placement, {
+      macroContext: regexContext,
+      ...(depth === undefined ? {} : { depth }),
+    });
+    for (const warning of result.warnings) {
+      if (!regexWarnings.has(warning)) {
+        regexWarnings.add(warning);
+        warnings.push(warning);
+      }
+    }
+    return result.text;
+  };
+  const applyPrompt = (text: string, depth?: number): string =>
+    applyPlacement(text, "prompt", depth);
 
   const formatGroupHistory = (name: string, content: string): string => {
     if (group === undefined) {
@@ -180,24 +201,27 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     card.systemPrompt.trim() !== ""
       ? M(substituteOriginal(card.systemPrompt, globalMain))
       : M(globalMain);
-  const mainWithGroup = groupInstruction === "" ? mainText : `${mainText}\n\n${groupInstruction}`;
+  const mainWithGroup = applyPrompt(
+    groupInstruction === "" ? mainText : `${mainText}\n\n${groupInstruction}`,
+  );
 
   // PHI：卡值覆盖全局（§3.5）；皆空 → 不注入
   const globalPhi = input.globalPrompts.postHistory;
-  const phiText =
+  const phiText = applyPrompt(
     card.postHistoryInstructions.trim() !== ""
       ? M(substituteOriginal(card.postHistoryInstructions, globalPhi))
-      : M(globalPhi);
+      : M(globalPhi),
+  );
 
   const sectionSources: Record<
     Exclude<SystemSectionId, "wiBefore" | "wiAfter" | "examples">,
     string
   > = {
     main: mainWithGroup,
-    persona: M(persona.description),
-    description: M(card.description),
-    personality: M(card.personality),
-    scenario: M(group?.scenarioOverride ?? card.scenario),
+    persona: applyPrompt(M(persona.description)),
+    description: applyPrompt(M(card.description)),
+    personality: applyPrompt(M(card.personality)),
+    scenario: applyPrompt(M(group?.scenarioOverride ?? card.scenario)),
   };
 
   const exampleBlocks = M(card.mesExample)
@@ -208,7 +232,10 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   // 世界书 entry.content 的替换副本（world-info-spec §7.3：原文保留在卡模型中）
   const replacedBooks: WorldInfoBook[] = input.worldInfo.books.map((book) => ({
     ...book,
-    entries: book.entries.map((entry) => ({ ...entry, content: M(entry.content) })),
+    entries: book.entries.map((entry) => ({
+      ...entry,
+      content: applyPlacement(M(entry.content), "worldInfo"),
+    })),
   }));
 
   // —— 步骤 1：世界书（基于完整历史，先于裁剪，§6.2）——
@@ -218,9 +245,19 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   }
   const scanHistory = [
     ...(hasGreeting
-      ? [{ role: "assistant" as const, name: card.name, content: M(input.greeting ?? "") }]
+      ? [
+          {
+            role: "assistant" as const,
+            name: card.name,
+            content: applyPlacement(M(input.greeting ?? ""), "aiOutput"),
+          },
+        ]
       : []),
-    ...input.history.map((m) => ({ role: m.role, name: m.name, content: M(m.content) })),
+    ...input.history.map((m) => ({
+      role: m.role,
+      name: m.name,
+      content: applyPlacement(M(m.content), m.role === "user" ? "userInput" : "aiOutput"),
+    })),
   ];
   const wiResult = resolveWorldInfo({
     books: replacedBooks,
@@ -238,8 +275,8 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   warnings.push(...wiResult.warnings);
 
   const wiTexts: Pick<Record<SystemSectionId, string>, "wiBefore" | "wiAfter"> = {
-    wiBefore: wiResult.byPosition.beforeChar.map((i) => i.content).join("\n"),
-    wiAfter: wiResult.byPosition.afterChar.map((i) => i.content).join("\n"),
+    wiBefore: applyPrompt(wiResult.byPosition.beforeChar.map((i) => i.content).join("\n")),
+    wiAfter: applyPrompt(wiResult.byPosition.afterChar.map((i) => i.content).join("\n")),
   };
 
   // —— 深度注入槽（§5.2；world-info-spec §7.2：同 (depth,role) 合并责任在组装器）——
@@ -253,7 +290,10 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     return slot;
   };
   if (input.authorNote !== null && input.authorNote.text.trim() !== "") {
-    slotAt(input.authorNote.depth).an = { role: "system", content: M(input.authorNote.text) };
+    slotAt(input.authorNote.depth).an = {
+      role: "system",
+      content: applyPrompt(M(input.authorNote.text), input.authorNote.depth),
+    };
   }
   for (const injection of wiResult.byPosition.atDepth) {
     // byPosition 已按 insertionOrder 升序（world-info-spec §6.1/§7.1）
@@ -261,7 +301,7 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     const role = injection.role ?? "system";
     const bucket = slotAt(depth);
     const list = bucket.wi.get(role) ?? [];
-    list.push(injection.content);
+    list.push(applyPrompt(injection.content, depth));
     bucket.wi.set(role, list);
   }
 
@@ -273,8 +313,8 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   }
   const chat: ChatEntry[] = [];
   if (hasGreeting) {
-    const content = M(input.greeting ?? "");
-    const formatted = formatGroupHistory(card.name, content);
+    const content = applyPlacement(M(input.greeting ?? ""), "aiOutput");
+    const formatted = applyPrompt(formatGroupHistory(card.name, content));
     chat.push({
       id: "greeting",
       message: { role: "assistant", content: formatted },
@@ -282,8 +322,8 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     });
   }
   for (const m of input.history) {
-    const content = M(m.content);
-    const formatted = formatGroupHistory(m.name, content);
+    const content = applyPlacement(M(m.content), m.role === "user" ? "userInput" : "aiOutput");
+    const formatted = applyPrompt(formatGroupHistory(m.name, content));
     chat.push({
       id: m.id,
       message: { role: m.role, content: formatted },
@@ -296,7 +336,7 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
     // M6：计划自定义内容来源（source=custom）优先；custom 文本做宏替换
     const slot = slotById.get(id);
     if (slot?.source === "custom") {
-      return M(slot.content);
+      return applyPrompt(M(slot.content));
     }
     if (id === "examples") {
       return examplesTextAt(from);
@@ -332,10 +372,12 @@ export function assemblePrompt(input: AssemblyInput): AssemblyResult {
   const examplesTextAt = (from: number): string =>
     from >= exampleBlocks.length
       ? ""
-      : exampleBlocks
-          .slice(from)
-          .map((b) => `<START>\n${b}`)
-          .join("\n");
+      : applyPrompt(
+          exampleBlocks
+            .slice(from)
+            .map((b) => `<START>\n${b}`)
+            .join("\n"),
+        );
 
   const dropped = new Set<string>();
   // 丢弃候选：最旧优先；保护 greeting（若有）与最后一条消息

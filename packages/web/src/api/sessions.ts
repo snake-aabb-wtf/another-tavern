@@ -34,6 +34,8 @@ export interface ChatMessageRow {
   sessionId: string;
   role: "user" | "assistant" | "system";
   content: string;
+  /** 服务端按 AI 输出规则生成的展示副本；数据库原文仍在 content。 */
+  displayContent?: string;
   speakerCharacterId?: string | null;
   speakerName?: string | null;
   status: "pending" | "completed" | "failed" | "cancelled";

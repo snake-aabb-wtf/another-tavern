@@ -59,6 +59,7 @@ export function settingsRoutes(deps: AppDeps): Hono {
       apiKey: newApiKey !== "" ? newApiKey : existing.apiKey,
       model: readString(body.model),
       sampling,
+      regexScripts: existing.regexScripts,
       defaultPlanId,
     });
     return c.json({

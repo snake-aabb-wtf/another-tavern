@@ -7,6 +7,7 @@ import { Hono } from "hono";
 
 import type { AppDeps } from "../app.js";
 import type { SessionMemberInput } from "../db/client.js";
+import { loadPlanExtension, loadRegexScripts, presentMessageContent } from "../regex.js";
 
 const DEFAULT_GROUP_SETTINGS: Record<string, unknown> = {
   replyStrategy: "manual",
@@ -138,10 +139,32 @@ export function sessionsRoutes(deps: AppDeps): Hono {
     if (session === undefined) {
       return c.json({ error: { code: "not_found", message: "会话不存在。" } }, 404);
     }
+    const plan = loadPlanExtension(deps, session);
+    const displayScripts = new Map<string, ReturnType<typeof loadRegexScripts>>();
+    const messages = deps.db.repo.listMessages(session.id).map((message) => {
+      if (message.role !== "assistant") {
+        return message;
+      }
+      const characterId = message.speakerCharacterId ?? session.characterId;
+      const character = deps.db.repo.getCharacter(characterId);
+      if (character === undefined) {
+        return message;
+      }
+      let scripts = displayScripts.get(characterId);
+      if (scripts === undefined) {
+        try {
+          scripts = loadRegexScripts(deps, JSON.parse(character.data), plan);
+        } catch {
+          scripts = [];
+        }
+        displayScripts.set(characterId, scripts);
+      }
+      return { ...message, displayContent: presentMessageContent(message.content, scripts).text };
+    });
     return c.json({
       session,
       members: deps.db.repo.listSessionMembers(session.id),
-      messages: deps.db.repo.listMessages(session.id),
+      messages,
     });
   });
 

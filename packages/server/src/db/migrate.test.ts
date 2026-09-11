@@ -88,5 +88,6 @@ describe("database migration 0005（群聊基础与旧单聊回填）", () => {
         speakerName: null,
       }),
     ]);
+    expect(repo.getSettings().regexScripts).toEqual([]);
   });
 });

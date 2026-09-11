@@ -43,6 +43,13 @@
       "when": 1789022387587,
       "tag": "0005_concerned_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789030000000,
+      "tag": "0006_amber_regex_scripts",
+      "breakpoints": true
     }
   ]
 }

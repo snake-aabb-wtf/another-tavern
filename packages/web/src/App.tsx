@@ -8,6 +8,7 @@ import CharactersPage from "./components/CharactersPage.js";
 import ChatView from "./components/ChatView.js";
 import LorebooksPage from "./components/LorebooksPage.js";
 import PlansPage from "./components/PlansPage.js";
+import RegexPage from "./components/RegexPage.js";
 import SettingsPage from "./components/SettingsPage.js";
 import Sidebar from "./components/Sidebar.js";
 import { app as t } from "./ui-text.js";
@@ -17,13 +18,14 @@ import { usePlansStore } from "./stores/plans.js";
 import { useSettingsStore } from "./stores/settings.js";
 import { useSessionsStore } from "./stores/sessions.js";
 
-type Page = "chat" | "characters" | "lorebooks" | "plans" | "settings";
+type Page = "chat" | "characters" | "lorebooks" | "plans" | "regex" | "settings";
 
 const PAGE_LABELS: ReadonlyArray<readonly [Page, string]> = [
   ["chat", t.pages.chat],
   ["characters", t.pages.characters],
   ["lorebooks", t.pages.lorebooks],
   ["plans", t.pages.plans],
+  ["regex", t.pages.regex],
   ["settings", t.pages.settings],
 ];
 
@@ -114,6 +116,7 @@ export default function App() {
           {page === "characters" && <CharactersPage onGoChat={() => setPage("chat")} />}
           {page === "lorebooks" && <LorebooksPage />}
           {page === "plans" && <PlansPage />}
+          {page === "regex" && <RegexPage />}
           {page === "settings" && <SettingsPage />}
         </main>
       </div>
